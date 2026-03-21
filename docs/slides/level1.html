@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 实战 - Level 1 Slides</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; scroll-snap-type: y mandatory; }
+        section { scroll-snap-align: start; min-height: 100vh; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 overflow-y-scroll scroll-smooth">
+
+    <!-- Slide 1: Introduction -->
+    <section class="flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-blue-900 to-indigo-950">
+        <h1 class="text-6xl font-extrabold mb-6 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+            AI Agent 实战: Level 1
+        </h1>
+        <p class="text-2xl text-slate-300 max-w-2xl mb-12">从“聊天框”开始：理解 LLM 调用与流式输出</p>
+        <div class="animate-bounce mt-12">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+        </div>
+    </section>
+
+    <!-- Slide 2: Core Goals -->
+    <section class="flex flex-col items-center justify-center p-12 bg-slate-900">
+        <h2 class="text-4xl font-bold mb-12 text-blue-400">核心目标</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
+            <div class="p-8 bg-slate-800 rounded-3xl border border-slate-700 shadow-xl">
+                <h3 class="text-xl font-bold mb-4 text-cyan-400">1. LLM 基本调用</h3>
+                <p class="text-slate-400 text-lg">掌握如何通过 API 与 Google Gemini 进行通信，理解消息历史结构。</p>
+            </div>
+            <div class="p-8 bg-slate-800 rounded-3xl border border-slate-700 shadow-xl">
+                <h3 class="text-xl font-bold mb-4 text-cyan-400">2. 流式输出 (Streaming)</h3>
+                <p class="text-slate-400 text-lg">实现“打字机”效果，通过 Vercel AI SDK 实时获取响应。</p>
+            </div>
+            <div class="p-8 bg-slate-800 rounded-3xl border border-slate-700 shadow-xl">
+                <h3 class="text-xl font-bold mb-4 text-cyan-400">3. Prompt 基础</h3>
+                <p class="text-slate-400 text-lg">编写有效的 System Prompt，定义助手的身份与行为边界。</p>
+            </div>
+            <div class="p-8 bg-slate-800 rounded-3xl border border-slate-700 shadow-xl">
+                <h3 class="text-xl font-bold mb-4 text-cyan-400">4. 上下文管理</h3>
+                <p class="text-slate-400 text-lg">维护对话数组，让 Agent 拥有短期“记忆”。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Slide 3: Tech Stack -->
+    <section class="flex flex-col items-center justify-center p-12 bg-indigo-950">
+        <h2 class="text-4xl font-bold mb-12 text-blue-300">技术栈 (Level 1)</h2>
+        <div class="flex flex-wrap justify-center gap-6 max-w-3xl">
+            <span class="px-6 py-3 bg-blue-600/20 border border-blue-500/30 rounded-full text-blue-200 font-semibold">Next.js 15+</span>
+            <span class="px-6 py-3 bg-cyan-600/20 border border-cyan-500/30 rounded-full text-cyan-200 font-semibold">Vercel AI SDK</span>
+            <span class="px-6 py-3 bg-indigo-600/20 border border-indigo-500/30 rounded-full text-indigo-200 font-semibold">Google Gemini 2.5 Flash</span>
+            <span class="px-6 py-3 bg-teal-600/20 border border-teal-500/30 rounded-full text-teal-200 font-semibold">Tailwind CSS v4</span>
+        </div>
+    </section>
+
+    <!-- Slide 4: Key Code Snip -->
+    <section class="flex flex-col items-center justify-center p-12 bg-slate-900">
+        <h2 class="text-4xl font-bold mb-8 text-blue-400">核心实现: Route Handler</h2>
+        <div class="w-full max-w-4xl bg-slate-950 p-8 rounded-3xl shadow-2xl border border-slate-800">
+            <pre class="text-sm md:text-base text-cyan-300 overflow-x-auto leading-relaxed">
+<code>const result = streamText({
+  model: google('gemini-2.5-flash'),
+  messages,
+  system: '你是一个乐于助人的 AI 助手。',
+});
+
+return result.toTextStreamResponse();</code>
+            </pre>
+            <p class="mt-6 text-slate-500 italic text-center text-sm">简单的 3 行核心代码即可实现强大的流式对话</p>
+        </div>
+    </section>
+
+    <!-- Slide 5: Next Steps -->
+    <section class="flex flex-col items-center justify-center p-8 text-center bg-slate-900">
+        <h2 class="text-4xl font-bold mb-6 text-emerald-400">准备好了吗？</h2>
+        <p class="text-xl text-slate-400 mb-12">点击开始实战，开启你的 AI Agent 之旅。</p>
+        <a href="../../code/level1/README.md" class="px-10 py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xl font-bold transition-all shadow-lg shadow-blue-900/40">
+            查看 Level 1 项目
+        </a>
+    </section>
+
+</body>
+</html>
