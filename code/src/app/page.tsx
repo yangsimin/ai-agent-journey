@@ -2,7 +2,8 @@
 
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from '@ai-sdk/react';
-import { useRef, useEffect, useState, FormEvent } from 'react';
+import { useRef, useEffect, useState } from 'react';
+import type { SubmitEvent } from 'react';
 
 interface Model {
   id: string;
@@ -27,6 +28,36 @@ export default function Chat() {
   
   const [models, setModels] = useState<Model[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
+  
+  const [isUploading, setIsUploading] = useState(false);
+  const [dbReady, setDbReady] = useState(false);
+
+  const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setDbReady(false);
+    try {
+      const text = await file.text();
+      const res = await fetch('/api/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, filename: file.name })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDbReady(true);
+        alert(`成功导入知识库：${file.name}\n智能分块数：${data.chunkCount}`);
+      } else {
+        alert('导入知识库失败：' + data.error);
+      }
+    } catch (err: any) {
+      alert('网络错误，导入出错：' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = ''; // 允许重复上传同一文件
+    }
+  };
 
   const { messages, status, sendMessage } = useChat();
   const [input, setInput] = useState('');
@@ -54,7 +85,7 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !selectedModel) return;
     
@@ -95,6 +126,23 @@ export default function Chat() {
               </select>
             )}
 
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
+
+            <label className={`relative flex items-center h-8 px-3 rounded-lg border text-xs font-semibold cursor-pointer shadow-sm transition-colors whitespace-nowrap ${
+              dbReady 
+                ? 'border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40' 
+                : 'border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'
+            }`}>
+              {isUploading ? (
+                <><i className="fas fa-spinner fa-spin mr-1.5 opacity-80"></i>吸收中...</>
+              ) : dbReady ? (
+                <><i className="fas fa-check-circle mr-1.5 opacity-80"></i>外脑已连接</>
+              ) : (
+                <><i className="fas fa-book mr-1.5 opacity-80"></i>上传知识库</>
+              )}
+              <input type="file" className="hidden" accept=".txt,.md,.mdx" onChange={onFileUpload} disabled={isUploading} />
+            </label>
+            
             <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
             <select
