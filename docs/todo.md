@@ -5,19 +5,19 @@
 ## 第一阶段：从“聊天框”开始 (第 1-2 周)
 **目标：** 理解 LLM 调用、流式输出与 Prompt 基础。
 
-- [ ] **项目前置准备**
-  - [ ] 准备 Node.js 环境与包管理器 (pnpm/npm)
-  - [ ] 申请并配置好 OpenAI 或 DeepSeek 等模型的 API Key 以及网络环境
-- [ ] **知识点突破**
-  - [ ] 阅读 [Vercel AI SDK 官方文档](https://sdk.vercel.ai/docs) (重点看核心概念与 UI Hooks)
+- [x] **项目前置准备**
+  - [x] 准备 Node.js 环境与包管理器 (pnpm/npm)
+  - [x] 申请并配置好 OpenAI、Gemini 或 DeepSeek 等模型的 API Key 以及网络环境
+- [x] **知识点突破**
+  - [x] 阅读 [Vercel AI SDK 官方文档](https://sdk.vercel.ai/docs) (重点看核心概念与 UI Hooks)
   - [ ] 观看吴恩达的《Prompt Engineering for Developers》短时间精通提示词技巧
 - [ ] **可视化与记录**
   - [x] 制作 Level 1 精美幻灯片 (`docs/slides/level1.html`)
   - [ ] 在 `docs/qa.md` 中记录学习过程中的第一批问题
-- [ ] **代码实战：Level 1 - 基础对话**
-  - [ ] 初始化 Next.js 项目并安装 `ai` (Vercel AI SDK) 相关依赖
-  - [ ] 创建后端 API Route (`app/api/chat/route.ts`), 调用模型并流式返回响应 (`streamText`)
-  - [ ] 前端页面使用 `useChat` hook 实现一个具有“打字机效果”的聊天界面
+- [x] **代码实战：Level 1 - 基础对话**
+  - [x] 初始化 Next.js 项目并安装 `ai` (Vercel AI SDK) 相关依赖
+  - [x] 创建后端 API Route (`app/api/chat/route.ts`), 调用模型并流式返回响应 (`streamText`)
+  - [x] 前端页面使用 `useChat` hook 实现一个具有“打字机效果”的聊天界面
 - [ ] **代码实战：Level 2 - 上下文与人设**
   - [ ] 完善前后端逻辑，把包含角色和历史消息的对话数组持续传给大模型后端
   - [ ] 编写精确的 `System Prompt`，设定助手（如“代码极客”）的人设和边界

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Journey - Level 2: 给 AI 装上“外挂硬盘” (RAG)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+SC:wght@300;400;700;900&display=swap');
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; overflow: hidden; background: #0f172a; color: white; }
+        .slide { display: none; height: 100vh; width: 100vw; flex-direction: column; justify-content: center; align-items: center; position: absolute; top: 0; left: 0; padding: 4rem; box-sizing: border-box; }
+        .slide.active { display: flex; animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .controls { position: fixed; bottom: 2rem; right: 2rem; z-index: 50; display: flex; gap: 1rem; }
+        .btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white; width: 48px; height: 48px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px); }
+        .btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); box-shadow: 0 0 20px rgba(59, 130, 246, 0.5); }
+        .progress-bar { position: fixed; top: 0; left: 0; height: 4px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899); transition: width 0.3s ease; z-index: 100; }
+        .gradient-text { background: linear-gradient(to right, #60a5fa, #c084fc, #f472b6); -webkit-background-clip: text; color: transparent; }
+        
+        .blob { position: absolute; filter: blur(80px); z-index: -1; opacity: 0.5; animation: float 10s infinite ease-in-out alternate; }
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(99,102,241,0) 70%); }
+        .blob-2 { bottom: -10%; right: -10%; width: 60vw; height: 60vw; background: radial-gradient(circle, rgba(139,92,246,0.3) 0%, rgba(236,72,153,0) 70%); animation-delay: -5s; }
+        @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(5%, 10%) scale(1.1); } }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="progress-bar" id="progress"></div>
+
+    <!-- Slide 1: Title -->
+    <div class="slide active glass-panel" id="slide-0">
+        <div class="w-full max-w-5xl text-center">
+            <div class="inline-block mb-6 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 font-semibold tracking-wider text-sm">
+                AI AGENT JOURNEY - LEVEL 2
+            </div>
+            <h1 class="text-7xl font-black mb-6 tracking-tight leading-tight">
+                给 AI 装上 <br><span class="gradient-text">“外挂硬盘”</span>
+            </h1>
+            <p class="text-2xl text-gray-300 font-light mb-12">
+                检索增强生成 (Retrieval-Augmented Generation, RAG) 
+            </p>
+            <div class="flex justify-center gap-6 mt-12">
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64">
+                    <i class="fas fa-brain text-4xl text-blue-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">突破知识瓶颈</h3>
+                    <p class="text-sm text-gray-400">打破大模型自身训练数据的限制，引入外部私有知识。</p>
+                </div>
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64">
+                    <i class="fas fa-database text-4xl text-purple-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">向量数据库</h3>
+                    <p class="text-sm text-gray-400">学习并使用高维向量空间进行语义模糊搜索。</p>
+                </div>
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64">
+                    <i class="fas fa-project-diagram text-4xl text-pink-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">LangChain</h3>
+                    <p class="text-sm text-gray-400">利用行业标准的 AI 开发框架连接数据与模型。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2: Why RAG? -->
+    <div class="slide glass-panel" id="slide-1">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-12 gradient-text">为什么我们需要 RAG？</h2>
+            
+            <div class="grid grid-cols-2 gap-12">
+                <div>
+                    <h3 class="text-3xl font-semibold mb-6 text-red-400 border-b border-white/10 pb-4">
+                        <i class="fas fa-times-circle mr-3"></i> 纯语言模型的痛点
+                    </h3>
+                    <ul class="space-y-6 text-xl text-gray-300">
+                        <li class="flex items-start"><i class="fas fa-ghost mt-1.5 mr-4 text-gray-500"></i> 幻觉问题 (Hallucination)，容易一本正经地胡说八道</li>
+                        <li class="flex items-start"><i class="fas fa-clock mt-1.5 mr-4 text-gray-500"></i> 数据滞后，无法获取最新的内部知识或实时数据</li>
+                        <li class="flex items-start"><i class="fas fa-lock mt-1.5 mr-4 text-gray-500"></i> 无法接触企业/个人的私密文档</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-3xl font-semibold mb-6 text-green-400 border-b border-white/10 pb-4">
+                        <i class="fas fa-check-circle mr-3"></i> RAG 的解决方案
+                    </h3>
+                    <ul class="space-y-6 text-xl text-gray-300">
+                        <li class="flex items-start"><i class="fas fa-search mt-1.5 mr-4 text-blue-400"></i> <strong>Retrieval (检索):</strong> 先在私有数据库中找到最相关的事实片段</li>
+                        <li class="flex items-start"><i class="fas fa-plus mt-1.5 mr-4 text-purple-400"></i> <strong>Augmented (增强):</strong> 将事实拼接进 Prompt 上下文</li>
+                        <li class="flex items-start"><i class="fas fa-pen-nib mt-1.5 mr-4 text-pink-400"></i> <strong>Generation (生成):</strong> 基于给定事实让 LLM 进行阅读理解与归纳</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: Core Concepts -->
+    <div class="slide glass-panel" id="slide-2">
+        <div class="w-full max-w-5xl text-center">
+            <h2 class="text-5xl font-bold mb-16 gradient-text">核心概念揭秘</h2>
+            
+            <div class="flex flex-wrap justify-center gap-8">
+                <!-- Concept 1 -->
+                <div class="bg-white/5 border border-white/10 p-8 rounded-3xl w-80 relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <i class="fas fa-cut text-5xl text-blue-400 mb-6 relative z-10"></i>
+                    <h3 class="text-2xl font-bold mb-4 relative z-10">Chunking</h3>
+                    <p class="text-gray-400 leading-relaxed relative z-10">
+                        <strong>文本切块：</strong>将长篇文档按照段落、句子甚至特定字数（如 500字/块）切割成极小的片段，方便局部匹配。
+                    </p>
+                </div>
+                
+                <!-- Concept 2 -->
+                <div class="bg-white/5 border border-white/10 p-8 rounded-3xl w-80 relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <i class="fas fa-barcode text-5xl text-purple-400 mb-6 relative z-10"></i>
+                    <h3 class="text-2xl font-bold mb-4 relative z-10">Embedding</h3>
+                    <p class="text-gray-400 leading-relaxed relative z-10">
+                        <strong>向量化：</strong>利用 Embedding 模型（如 `text-embedding-004`），将一段文字转化为一串长长的浮点数数组（如 768 维降维坐标），捕获其深层语义。
+                    </p>
+                </div>
+                
+                <!-- Concept 3 -->
+                <div class="bg-white/5 border border-white/10 p-8 rounded-3xl w-80 relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <i class="fas fa-vector-square text-5xl text-pink-400 mb-6 relative z-10"></i>
+                    <h3 class="text-2xl font-bold mb-4 relative z-10">Vector Store</h3>
+                    <p class="text-gray-400 leading-relaxed relative z-10">
+                        <strong>向量数据库：</strong>专门用来存储这些向量数组。通过计算“余弦相似度 (Cosine Similarity)”，从海量数据中瞬间找出语义最相近的 Chunk。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Real-World Workflow -->
+    <div class="slide glass-panel" id="slide-3">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text text-center">标准 RAG 工作流</h2>
+            
+            <div class="relative mt-12 bg-gray-900/50 p-8 rounded-3xl border border-white/10">
+                <!-- Two Phase Architecture Diagram -->
+                <div class="grid grid-cols-2 gap-x-16 gap-y-12">
+                    
+                    <!-- INGESTION PHASE -->
+                    <div class="col-span-2 border-b border-white/10 pb-8 relative">
+                        <span class="absolute -top-4 left-6 bg-[#0f172a] px-4 text-blue-400 font-bold uppercase tracking-widest text-sm border border-blue-500/30 rounded-full">Phase 1: 数据摄入 (Ingestion)</span>
+                        <div class="flex justify-between items-center mt-6">
+                            <div class="text-center group">
+                                <div class="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20 group-hover:border-blue-400 transition-colors"><i class="fas fa-file-pdf text-3xl"></i></div>
+                                <span class="text-sm font-medium">源文档</span>
+                            </div>
+                            <div class="flex-1 px-4 text-center text-white/30"><i class="fas fa-arrow-right"></i> 分割器</div>
+                            <div class="text-center group">
+                                <div class="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20 group-hover:border-blue-400 transition-colors"><i class="fas fa-layer-group text-3xl"></i></div>
+                                <span class="text-sm font-medium">Chunks</span>
+                            </div>
+                            <div class="flex-1 px-4 text-center text-white/30"><i class="fas fa-bolt text-yellow-400"></i> Embedding</div>
+                            <div class="text-center group">
+                                <div class="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.5)]"><i class="fas fa-database text-3xl text-blue-400"></i></div>
+                                <span class="text-sm font-medium">向量池</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RETRIEVAL PHASE -->
+                    <div class="col-span-2 relative pt-4">
+                        <span class="absolute -top-4 left-6 bg-[#0f172a] px-4 text-purple-400 font-bold uppercase tracking-widest text-sm border border-purple-500/30 rounded-full">Phase 2: 检索生成 (Retrieval)</span>
+                        <div class="flex justify-between items-center mt-6">
+                            <div class="text-center">
+                                <div class="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20"><i class="fas fa-user text-3xl"></i></div>
+                                <span class="text-sm font-medium">用户提问</span>
+                            </div>
+                            <div class="flex-1 px-4 text-center text-white/30"><i class="fas fa-bolt text-yellow-400"></i> 问题向量化</div>
+                            
+                            <!-- DB Search -->
+                            <div class="flex flex-col items-center">
+                                <div class="text-blue-400 mb-1"><i class="fas fa-search"></i> KNN 搜索</div>
+                                <div class="h-16 w-0.5 bg-gradient-to-b from-blue-500 to-purple-500"></div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <div class="w-20 h-20 bg-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.5)]"><i class="fas fa-comment-dots text-3xl text-purple-400"></i></div>
+                                <span class="text-sm font-medium">合成 Prompt</span>
+                            </div>
+                            <div class="flex-1 px-4 text-center text-white/30"><i class="fas fa-arrow-right"></i></div>
+                            <div class="text-center">
+                                <div class="w-24 h-24 bg-gradient-to-br from-pink-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-[0_0_25px_rgba(236,72,153,0.5)]"><i class="fas fa-robot text-4xl text-white"></i></div>
+                                <span class="text-sm font-bold text-pink-300">大模型输出</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: Level 2 Goals -->
+    <div class="slide glass-panel" id="slide-4">
+        <div class="w-full max-w-4xl text-center">
+            <h2 class="text-5xl font-bold mb-12 gradient-text">本阶段目标</h2>
+            
+            <div class="bg-white/5 border border-white/10 p-10 rounded-3xl text-left shadow-2xl">
+                <h3 class="text-3xl font-semibold mb-8 flex items-center">
+                    <span class="bg-blue-500 text-white w-10 h-10 rounded-lg flex items-center justify-center mr-4 text-xl">🎯</span>
+                    你的任务清单
+                </h3>
+                <ul class="space-y-6 text-xl text-gray-300">
+                    <li class="flex items-start">
+                        <i class="fas fa-square mt-1.5 mr-4 text-gray-500 opacity-50"></i>
+                        <span>注册云端免费向量数据库 (推荐 <strong>Pinecone</strong> 或 Supabase)</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-square mt-1.5 mr-4 text-gray-500 opacity-50"></i>
+                        <span>写一个脱机脚本 (Script)，把一份 Markdown 文件用 <strong>LangChain</strong> 分块并 Embed 进向量库</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-square mt-1.5 mr-4 text-gray-500 opacity-50"></i>
+                        <span>在现在的 Chat UI 里，加一个后端处理：**先搜索本地库，再让 AI 回答**</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fas fa-square mt-1.5 mr-4 text-gray-500 opacity-50"></i>
+                        <span>测试：让 AI 完美回答出那份私密 Markdown 文件里的信息。</span>
+                    </li>
+                </ul>
+                <div class="mt-12 text-center">
+                    <p class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 animate-pulse">
+                        准备好让你的 AI 接入外挂大脑了吗？
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button class="btn" id="prevBtn" onclick="changeSlide(-1)"><i class="fas fa-chevron-left"></i></button>
+        <button class="btn" id="nextBtn" onclick="changeSlide(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        const progressBar = document.getElementById('progress');
+
+        function changeSlide(direction) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            progressBar.style.width = progress + '%';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') changeSlide(1);
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+        });
+
+        updateProgress();
+    </script>
+</body>
+</html>

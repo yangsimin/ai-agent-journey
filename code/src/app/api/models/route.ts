@@ -12,12 +12,15 @@ export async function GET() {
 
     // 只保留支持 generateContent 的模型（即可用于聊天的模型）
     const models = (data.models ?? [])
-      .filter((m: { supportedGenerationMethods?: string[] }) =>
+      .filter((m: any) =>
         m.supportedGenerationMethods?.includes('generateContent')
       )
-      .map((m: { name: string; displayName?: string }) => ({
+      .map((m: any) => ({
         id: m.name.replace('models/', ''), // e.g. "gemini-2.0-flash"
         displayName: m.displayName ?? m.name,
+        description: m.description || '',
+        inputTokenLimit: m.inputTokenLimit || 0,
+        thinking: m.thinking || false,
       }));
 
     return Response.json({ models });
