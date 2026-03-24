@@ -11,9 +11,9 @@
 - [x] **知识点突破**
   - [x] 阅读 [Vercel AI SDK 官方文档](https://sdk.vercel.ai/docs) (重点看核心概念与 UI Hooks)
   - [ ] 观看吴恩达的《Prompt Engineering for Developers》短时间精通提示词技巧
-- [ ] **可视化与记录**
+- [x] **可视化与记录**
   - [x] 制作 Level 1 精美幻灯片 (`docs/slides/level1.html`)
-  - [ ] 在 `docs/qa.md` 中记录学习过程中的第一批问题
+  - [x] 在 `docs/qa.md` 中记录学习过程中的第一批问题
 - [x] **代码实战：Level 1 - 基础对话**
   - [x] 初始化 Next.js 项目并安装 `ai` (Vercel AI SDK) 相关依赖
   - [x] 创建后端 API Route (`app/api/chat/route.ts`), 调用模型并流式返回响应 (`streamText`)
@@ -29,7 +29,7 @@
 
 - [x] **可视化与记录**
   - [x] 制作 Level 2 精美幻灯片 (`docs/slides/level2.html`)
-  - [ ] 在 `docs/qa.md` 中记录 RAG 相关的疑问
+  - [x] 在 `docs/qa.md` 中记录 RAG 相关的疑问
 - [ ] **知识点突破**
   - [x] 理解核心概念：Embedding (向量化), Chunking (文本切块) 以及 Cosine Similarity (余弦相似度)
   - [x] 阅读 LangChain.js 官方文档中的 "Retrieval" (检索) 章节
