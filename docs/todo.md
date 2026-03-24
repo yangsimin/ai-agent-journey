@@ -50,18 +50,18 @@
 ## 第三阶段：给 AI 装上“手” (第 5-6 周)
 **目标：** 掌握 Function Calling 与 结构化输出 (Structured Outputs)。
 
-- [ ] **可视化与记录**
-  - [ ] 制作 Level 3 精美幻灯片 (`docs/slides/level3.html`)
+- [x] **可视化与记录**
+  - [x] 制作 Level 3 精美幻灯片 (`docs/slides/level3.html`)
   - [ ] 在 `docs/qa.md` 中记录工具调用相关的思考
 - [ ] **知识点突破**
-  - [ ] 阅读并理解模型官方文档关于 Function Calling / Tool Calling 的运转逻辑
-  - [ ] 学习使用 **Zod** 定义强类型 Schema（大模型生成稳定输出的前端利器）
-- [ ] **代码实战：智能 TodoList**
-  - [ ] 用纯 TS 编写两个本地函数：`createTodo` (存入本地数组 or localStorage) 和 `getWeather`
-  - [ ] 利用 Zod 严格定义这两个工具函数的输入参数与结构的 JSON Schema
-  - [ ] 在调用大模型时，通过 `tools` 参数把你的 Schema 提供给它
-  - [ ] 解析模型基于对话内容生成的函数调用意图 (Tool Call)，在本地真正执行对应代码
-  - [ ] 将函数执行结果回传给模型，总结成自然语言回复给用户
+  - [x] 阅读并理解模型官方文档关于 Function Calling / Tool Calling 的运转逻辑
+  - [x] 学习使用 **Zod** 定义强类型 Schema（大模型生成稳定输出的前端利器）
+- [x] **代码实战：智能 TodoList**
+  - [x] 用纯 TS 编写两个本地函数：`createTodo` (存入本地数组 or localStorage) 和 `getWeather`
+  - [x] 利用 Zod 严格定义这两个工具函数的输入参数与结构的 JSON Schema
+  - [x] 在调用大模型时，通过 `tools` 参数把你的 Schema 提供给它
+  - [x] 解析模型基于对话内容生成的函数调用意图 (Tool Call)，在本地真正执行对应代码
+  - [x] 将函数执行结果回传给模型，总结成自然语言回复给用户
 
 ---
 

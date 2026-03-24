@@ -1,7 +1,8 @@
 import { google } from '@ai-sdk/google';
-import { streamText, convertToModelMessages } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { searchStore } from '@/lib/vectorStore';
 import { embedText } from '@/lib/embeddings';
+import { myTools } from '@/lib/tools';
 
 export const maxDuration = 30;
 
@@ -15,7 +16,8 @@ export async function POST(req: Request) {
   // 使用官方工具函数将 UIMessage[] 转换为 ModelMessage[]
   const modelMessages = await convertToModelMessages(messages);
 
-  let enhancedSystemPrompt = systemPrompt || '你是一个乐于助人的 AI 助手，精通各种编程开发问题。';
+  let enhancedSystemPrompt = systemPrompt
+    || '你是一个功能强大的 AI 助手。你可以帮助用户创建待办事项（提醒、任务、计划），也可以查询城市天气。请根据用户需求主动调用相应的工具。';
   
   // 兼容直接传递的 content 和 Vercel AI SDK 3.x 传递的 parts 数组
   const lastMsg = messages[messages.length - 1];
@@ -47,6 +49,13 @@ export async function POST(req: Request) {
     model: google(modelName),
     messages: modelMessages,
     system: enhancedSystemPrompt,
+    tools: myTools,
+    stopWhen: stepCountIs(5),
+    onStepFinish({ stepNumber, toolCalls }) {
+      if (toolCalls.length > 0) {
+        console.log(`[Tool Call] Step ${stepNumber}:`, toolCalls.map(t => `${t.toolName}(${JSON.stringify(t.input)})`));
+      }
+    },
   });
 
   return result.toUIMessageStreamResponse();

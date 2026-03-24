@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Journey - Level 3: 给 AI 装上"手" (Function Calling)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+SC:wght@300;400;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; overflow: hidden; background: #0f172a; color: white; }
+        .slide { display: none; height: 100vh; width: 100vw; flex-direction: column; justify-content: center; align-items: center; position: absolute; top: 0; left: 0; padding: 4rem; box-sizing: border-box; }
+        .slide.active { display: flex; animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .controls { position: fixed; bottom: 2rem; right: 2rem; z-index: 50; display: flex; gap: 1rem; }
+        .btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white; width: 48px; height: 48px; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px); }
+        .btn:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.1); box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); }
+        .progress-bar { position: fixed; top: 0; left: 0; height: 4px; background: linear-gradient(90deg, #10b981, #6366f1, #f59e0b); transition: width 0.3s ease; z-index: 100; }
+        .gradient-text { background: linear-gradient(to right, #34d399, #818cf8, #fbbf24); -webkit-background-clip: text; color: transparent; }
+        .gradient-text-warm { background: linear-gradient(to right, #fbbf24, #f472b6, #818cf8); -webkit-background-clip: text; color: transparent; }
+        code, .code-block { font-family: 'JetBrains Mono', monospace; }
+        .code-block { background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5rem; font-size: 0.85rem; line-height: 1.7; overflow-x: auto; }
+        .code-block .keyword { color: #c084fc; }
+        .code-block .string { color: #34d399; }
+        .code-block .func { color: #60a5fa; }
+        .code-block .comment { color: #64748b; }
+        .code-block .type { color: #fbbf24; }
+        .code-block .const-val { color: #fb923c; }
+        .blob { position: absolute; filter: blur(80px); z-index: -1; opacity: 0.5; animation: float 10s infinite ease-in-out alternate; }
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(99,102,241,0) 70%); }
+        .blob-2 { bottom: -10%; right: -10%; width: 60vw; height: 60vw; background: radial-gradient(circle, rgba(99,102,241,0.25) 0%, rgba(245,158,11,0) 70%); animation-delay: -5s; }
+        @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(5%, 10%) scale(1.1); } }
+        .step-num { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; flex-shrink: 0; }
+        .timeline-line { width: 2px; background: linear-gradient(to bottom, #10b981, #6366f1); }
+        .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px; }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="progress-bar" id="progress"></div>
+
+    <!-- Slide 0: Title -->
+    <div class="slide active glass-panel" id="slide-0">
+        <div class="w-full max-w-5xl text-center">
+            <div class="inline-block mb-6 px-4 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 font-semibold tracking-wider text-sm">
+                AI AGENT JOURNEY - LEVEL 3
+            </div>
+            <h1 class="text-7xl font-black mb-6 tracking-tight leading-tight">
+                给 AI 装上 <br><span class="gradient-text">"手"</span>
+            </h1>
+            <p class="text-2xl text-gray-300 font-light mb-12">
+                Function Calling & Structured Outputs
+            </p>
+            <div class="flex justify-center gap-6 mt-12">
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64 hover:border-emerald-500/30 transition-colors">
+                    <i class="fas fa-hand-pointer text-4xl text-emerald-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">函数调用</h3>
+                    <p class="text-sm text-gray-400">让模型从"只会说"进化到"能做事"。</p>
+                </div>
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64 hover:border-indigo-500/30 transition-colors">
+                    <i class="fas fa-shield-halved text-4xl text-indigo-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">Zod 类型守卫</h3>
+                    <p class="text-sm text-gray-400">运行时验证模型输出，保证结构稳定。</p>
+                </div>
+                <div class="text-left bg-white/5 p-6 rounded-2xl border border-white/10 w-64 hover:border-amber-500/30 transition-colors">
+                    <i class="fas fa-list-check text-4xl text-amber-400 mb-4 block"></i>
+                    <h3 class="text-xl font-bold mb-2">智能 TodoList</h3>
+                    <p class="text-sm text-gray-400">用自然语言操控本地代码的实战项目。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 1: What is Function Calling -->
+    <div class="slide glass-panel" id="slide-1">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-12 gradient-text">Function Calling 是什么？</h2>
+            <div class="grid grid-cols-2 gap-12">
+                <div>
+                    <h3 class="text-2xl font-semibold mb-6 text-gray-400 border-b border-white/10 pb-4">
+                        <i class="fas fa-comment-dots mr-3 text-gray-500"></i> Level 1-2：AI 只会"说"
+                    </h3>
+                    <div class="bg-white/5 rounded-2xl p-6 border border-white/10">
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center"><i class="fas fa-user text-blue-400"></i></div>
+                            <div class="bg-white/10 rounded-2xl rounded-tl-none px-4 py-2.5 text-lg">深圳今天天气怎么样？</div>
+                        </div>
+                        <div class="flex items-center gap-4 justify-end">
+                            <div class="bg-indigo-500/20 rounded-2xl rounded-tr-none px-4 py-2.5 text-lg">根据我的训练数据，深圳一般气候温暖...</div>
+                            <div class="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center"><i class="fas fa-robot text-indigo-400"></i></div>
+                        </div>
+                        <div class="mt-4 text-center text-red-400 text-sm font-semibold">
+                            <i class="fas fa-exclamation-triangle mr-1"></i> 可能过时、可能幻觉、无法执行操作
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-semibold mb-6 text-emerald-400 border-b border-white/10 pb-4">
+                        <i class="fas fa-bolt mr-3"></i> Level 3：AI 能"做"
+                    </h3>
+                    <div class="bg-white/5 rounded-2xl p-6 border border-emerald-500/20">
+                        <div class="flex items-center gap-4 mb-4">
+                            <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center"><i class="fas fa-user text-blue-400"></i></div>
+                            <div class="bg-white/10 rounded-2xl rounded-tl-none px-4 py-2.5 text-lg">深圳今天天气怎么样？</div>
+                        </div>
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center"><i class="fas fa-robot text-indigo-400"></i></div>
+                            <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-2.5 text-sm">
+                                <i class="fas fa-gear text-amber-400 mr-2"></i>
+                                <code>get_weather(city: "深圳")</code>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center"><i class="fas fa-code text-emerald-400 text-xs"></i></div>
+                            <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 text-xs text-emerald-300">
+                                执行结果: { temperature: 25, condition: "晴" }
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 justify-end">
+                            <div class="bg-indigo-500/20 rounded-2xl rounded-tr-none px-4 py-2.5 text-lg">深圳今天晴，气温25度，适合出门。</div>
+                            <div class="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center"><i class="fas fa-robot text-indigo-400"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2: Two-Round Protocol -->
+    <div class="slide glass-panel" id="slide-2">
+        <div class="w-full max-w-5xl text-center">
+            <h2 class="text-5xl font-bold mb-16 gradient-text">核心本质：两轮协议</h2>
+            <div class="flex flex-col items-center gap-8">
+                <!-- Step 1 -->
+                <div class="flex items-center gap-6 w-full max-w-3xl">
+                    <div class="step-num bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400">1</div>
+                    <div class="flex-1 bg-white/5 rounded-2xl p-5 border border-white/10 text-left">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="tag bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">你的代码</span>
+                            <span class="text-gray-400 text-sm">发送问题 + 工具定义</span>
+                        </div>
+                        <p class="text-gray-300">"这是用户的问题，你有这些函数可以调用：get_weather、create_todo"</p>
+                    </div>
+                </div>
+                <div class="w-0.5 h-6 bg-gradient-to-b from-emerald-500 to-indigo-500"></div>
+                <!-- Step 2 -->
+                <div class="flex items-center gap-6 w-full max-w-3xl">
+                    <div class="step-num bg-indigo-500/20 border-2 border-indigo-500 text-indigo-400">2</div>
+                    <div class="flex-1 bg-indigo-500/5 rounded-2xl p-5 border border-indigo-500/20 text-left">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="tag bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">大模型</span>
+                            <span class="text-gray-400 text-sm">返回结构化调用请求</span>
+                        </div>
+                        <p class="text-gray-300">"我需要调用 <code class="text-amber-400">get_weather(city="深圳")</code>，请帮我执行"</p>
+                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle mr-1"></i> finish_reason 变为 "tool_calls"，content 为 null</p>
+                    </div>
+                </div>
+                <div class="w-0.5 h-6 bg-gradient-to-b from-indigo-500 to-amber-500"></div>
+                <!-- Step 3 -->
+                <div class="flex items-center gap-6 w-full max-w-3xl">
+                    <div class="step-num bg-amber-500/20 border-2 border-amber-500 text-amber-400">3</div>
+                    <div class="flex-1 bg-white/5 rounded-2xl p-5 border border-white/10 text-left">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="tag bg-amber-500/20 text-amber-300 border border-amber-500/30">你的代码</span>
+                            <span class="text-gray-400 text-sm">本地执行函数，拿到结果</span>
+                        </div>
+                        <p class="text-gray-300">调用 API / 查数据库 / 写文件... 得到 <code class="text-emerald-400">{ temperature: 25, condition: "晴" }</code></p>
+                    </div>
+                </div>
+                <div class="w-0.5 h-6 bg-gradient-to-b from-amber-500 to-pink-500"></div>
+                <!-- Step 4 -->
+                <div class="flex items-center gap-6 w-full max-w-3xl">
+                    <div class="step-num bg-pink-500/20 border-2 border-pink-500 text-pink-400">4</div>
+                    <div class="flex-1 bg-indigo-500/5 rounded-2xl p-5 border border-indigo-500/20 text-left">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="tag bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">大模型</span>
+                            <span class="text-gray-400 text-sm">基于结果生成自然语言回答</span>
+                        </div>
+                        <p class="text-gray-300">"深圳今天晴天，气温25度，适合出行！"</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-10 text-center">
+                <div class="inline-block bg-red-500/10 border border-red-500/30 rounded-xl px-5 py-2.5 text-red-300 text-sm font-semibold">
+                    <i class="fas fa-exclamation-circle mr-2"></i> 模型从不直接执行代码 — 它只告诉你"该调什么、参数是什么"
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: Tool Definition -->
+    <div class="slide glass-panel" id="slide-3">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text">定义工具：JSON Schema</h2>
+            <div class="grid grid-cols-2 gap-10">
+                <div>
+                    <p class="text-gray-300 text-lg mb-6 leading-relaxed">
+                        通过 <code class="text-indigo-400">tools</code> 参数告诉模型可用函数，模型靠 <strong class="text-amber-400">description</strong> 判断何时调用。
+                    </p>
+                    <div class="space-y-4 text-gray-300">
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-tag text-amber-400 mt-1"></i>
+                            <div><strong class="text-white">name</strong> — 函数名，模型通过它引用函数</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-star text-amber-400 mt-1"></i>
+                            <div><strong class="text-white">description</strong> — <span class="text-amber-400">最重要的字段</span>，决定模型是否选择此工具</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-list text-amber-400 mt-1"></i>
+                            <div><strong class="text-white">parameters</strong> — JSON Schema，定义参数结构和类型</div>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <i class="fas fa-asterisk text-amber-400 mt-1"></i>
+                            <div><strong class="text-white">required</strong> — 声明必填参数列表</div>
+                        </div>
+                    </div>
+                    <div class="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-sm text-amber-200">
+                        <i class="fas fa-lightbulb mr-2"></i> 工具数量建议不超过 20 个，超过 10 个时模型准确率开始下降。
+                    </div>
+                </div>
+                <div class="code-block text-sm">
+<span class="comment">// 原始 JSON Schema (协议层)</span>
+{
+  <span class="string">"type"</span>: <span class="string">"function"</span>,
+  <span class="string">"function"</span>: {
+    <span class="string">"name"</span>: <span class="string">"get_weather"</span>,
+    <span class="string">"description"</span>: <span class="string">"获取城市天气..."</span>,
+    <span class="string">"parameters"</span>: {
+      <span class="string">"type"</span>: <span class="string">"object"</span>,
+      <span class="string">"properties"</span>: {
+        <span class="string">"city"</span>: { <span class="string">"type"</span>: <span class="string">"string"</span> },
+        <span class="string">"unit"</span>: { <span class="string">"enum"</span>: [<span class="string">"celsius"</span>] }
+      },
+      <span class="string">"required"</span>: [<span class="string">"city"</span>]
+    }
+  }
+}
+
+<span class="comment">// Vercel AI SDK (Zod 风格)</span>
+<span class="func">tool</span>({
+  description: <span class="string">"获取城市天气..."</span>,
+  inputSchema: z.<span class="func">object</span>({
+    city: z.<span class="func">string</span>(),
+    unit: z.<span class="func">enum</span>([<span class="string">"celsius"</span>]),
+  }),
+  execute: <span class="keyword">async</span> ({ city }) => ({
+    temperature: <span class="const-val">25</span>,
+    condition: <span class="string">"晴"</span>
+  }),
+})
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: Model Response -->
+    <div class="slide glass-panel" id="slide-4">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text">模型的响应：Tool Call</h2>
+            <div class="code-block text-sm mb-8">
+<span class="comment">// 模型决定调用工具时的响应</span>
+{
+  <span class="string">"choices"</span>: [{
+    <span class="string">"finish_reason"</span>: <span class="const-val">"tool_calls"</span>,   <span class="comment">// 关键信号！</span>
+    <span class="string">"message"</span>: {
+      <span class="string">"role"</span>: <span class="string">"assistant"</span>,
+      <span class="string">"content"</span>: <span class="const-val">null</span>,               <span class="comment">// 不生成文本</span>
+      <span class="string">"tool_calls"</span>: [{
+        <span class="string">"id"</span>: <span class="string">"call_abc123"</span>,           <span class="comment">// 唯一 ID，回传时必须匹配</span>
+        <span class="string">"function"</span>: {
+          <span class="string">"name"</span>: <span class="string">"get_weather"</span>,
+          <span class="string">"arguments"</span>: <span class="string">"{\"city\":\"深圳\"}"</span> <span class="comment">// JSON 字符串！需 parse</span>
+        }
+      }]
+    }
+  }]
+}
+            </div>
+            <div class="grid grid-cols-3 gap-6">
+                <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-5 text-center">
+                    <div class="text-3xl font-bold text-red-400 mb-2">tool_calls</div>
+                    <div class="text-sm text-gray-400">finish_reason 变为此值</div>
+                </div>
+                <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-5 text-center">
+                    <div class="text-3xl font-bold text-amber-400 mb-2">content: null</div>
+                    <div class="text-sm text-gray-400">模型不生成任何文本</div>
+                </div>
+                <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-5 text-center">
+                    <div class="text-3xl font-bold text-indigo-400 mb-2">tool_call_id</div>
+                    <div class="text-sm text-gray-400">回传结果时必须严格匹配</div>
+                </div>
+            </div>
+            <div class="mt-8 bg-white/5 border border-white/10 rounded-xl p-5">
+                <h4 class="text-lg font-semibold text-emerald-400 mb-3"><i class="fas fa-rocket mr-2"></i>高级特性</h4>
+                <div class="grid grid-cols-2 gap-4 text-gray-300">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-layer-group text-indigo-400 mt-1"></i>
+                        <span><strong>并行调用</strong> — 模型一次可返回多个 tool_calls，并行执行减少延迟</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-repeat text-indigo-400 mt-1"></i>
+                        <span><strong>多步推理</strong> — 收到结果后可再次请求调用，需设最大轮数防止死循环</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: tool_choice -->
+    <div class="slide glass-panel" id="slide-5">
+        <div class="w-full max-w-5xl text-center">
+            <h2 class="text-5xl font-bold mb-16 gradient-text">tool_choice：调用控制策略</h2>
+            <div class="grid grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-left hover:border-emerald-500/30 transition-colors group">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                            <i class="fas fa-wand-magic-sparkles text-xl text-emerald-400"></i>
+                        </div>
+                        <div>
+                            <code class="text-lg text-emerald-400">"auto"</code>
+                            <div class="text-xs text-gray-500">默认值</div>
+                        </div>
+                    </div>
+                    <p class="text-gray-300">模型<strong class="text-white">自主判断</strong>是否需要调用工具。最常用的模式。</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-left hover:border-red-500/30 transition-colors group">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center">
+                            <i class="fas fa-ban text-xl text-red-400"></i>
+                        </div>
+                        <div>
+                            <code class="text-lg text-red-400">"none"</code>
+                            <div class="text-xs text-gray-500">禁用模式</div>
+                        </div>
+                    </div>
+                    <p class="text-gray-300"><strong class="text-white">禁止</strong>模型调用任何工具，强制纯文本回答。</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-left hover:border-amber-500/30 transition-colors group">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                            <i class="fas fa-bolt text-xl text-amber-400"></i>
+                        </div>
+                        <div>
+                            <code class="text-lg text-amber-400">"required"</code>
+                            <div class="text-xs text-gray-500">强制模式</div>
+                        </div>
+                    </div>
+                    <p class="text-gray-300"><strong class="text-white">必须</strong>调用至少一个工具，不能纯文本回答。</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-8 text-left hover:border-indigo-500/30 transition-colors group">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                            <i class="fas fa-crosshairs text-xl text-indigo-400"></i>
+                        </div>
+                        <div>
+                            <code class="text-lg text-indigo-400">{ toolName }</code>
+                            <div class="text-xs text-gray-500">精确模式</div>
+                        </div>
+                    </div>
+                    <p class="text-gray-300"><strong class="text-white">强制</strong>调用指定的某一个工具。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: Zod -->
+    <div class="slide glass-panel" id="slide-6">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text">Zod：运行时类型守卫</h2>
+            <div class="grid grid-cols-2 gap-10">
+                <div>
+                    <h3 class="text-2xl font-semibold mb-6 text-emerald-400">为什么需要 Zod？</h3>
+                    <div class="space-y-4 text-gray-300">
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10">
+                            <div class="text-sm text-red-400 mb-2"><i class="fas fa-times mr-1"></i> TypeScript 编译时</div>
+                            <p class="text-sm">类型在运行时消失，<code>any</code> 数据直接通过</p>
+                        </div>
+                        <div class="flex justify-center text-gray-600"><i class="fas fa-arrow-down"></i></div>
+                        <div class="bg-emerald-500/10 rounded-xl p-4 border border-emerald-500/20">
+                            <div class="text-sm text-emerald-400 mb-2"><i class="fas fa-check mr-1"></i> Zod 运行时</div>
+                            <p class="text-sm">验证数据结构，保证类型安全</p>
+                        </div>
+                    </div>
+                    <div class="mt-6 text-gray-400 text-sm leading-relaxed">
+                        在 AI 场景中，模型返回的数据来自网络，属于 <strong class="text-amber-400">untrusted data</strong>。Zod 是最后一道防线。
+                    </div>
+                </div>
+                <div class="code-block text-sm">
+<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
+
+<span class="comment">// 定义 Schema（同时获得 TS 类型）</span>
+<span class="keyword">const</span> TodoSchema = z.<span class="func">object</span>({
+  id: z.<span class="func">string</span>(),
+  title: z.<span class="func">string</span>()
+    .<span class="func">describe</span>(<span class="string">'任务标题'</span>),
+  done: z.<span class="func">boolean</span>(),
+  dueDate: z.<span class="func">string</span>().<span class="func">optional</span>(),
+  priority: z.<span class="func">enum</span>([
+    <span class="string">'high'</span>, <span class="string">'medium'</span>, <span class="string">'low'</span>
+  ]).<span class="func">describe</span>(<span class="string">'任务优先级'</span>),
+});
+
+<span class="comment">// 自动推导 TS 类型</span>
+<span class="keyword">type</span> <span class="type">Todo</span> = z.<span class="func">infer</span>&lt;<span class="keyword">typeof</span> TodoSchema&gt;;
+<span class="comment">// { id: string; title: string;
+//   done: boolean; dueDate?: string;
+//   priority: 'high'|'medium'|'low' }</span>
+
+<span class="comment">// 运行时验证</span>
+<span class="keyword">const</span> result = TodoSchema.<span class="func">safeParse</span>(data);
+<span class="keyword">if</span> (result.success) {
+  console.<span class="func">log</span>(result.data); <span class="comment">// 类型安全!</span>
+}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 7: Zod Primitives -->
+    <div class="slide glass-panel" id="slide-7">
+        <div class="w-full max-w-5xl text-center">
+            <h2 class="text-5xl font-bold mb-12 gradient-text">Zod 常用 Schema 原语</h2>
+            <div class="grid grid-cols-3 gap-5 max-w-5xl mx-auto text-left">
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-emerald-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-font text-emerald-400"></i>
+                        <code class="text-emerald-400 text-sm">z.string()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">.min() .max() .email() .url() .describe()</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-blue-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-hashtag text-blue-400"></i>
+                        <code class="text-blue-400 text-sm">z.number()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">.int() .min() .max() .positive() .describe()</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-purple-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-toggle-on text-purple-400"></i>
+                        <code class="text-purple-400 text-sm">z.boolean()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">布尔值：true | false</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-amber-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-list-ol text-amber-400"></i>
+                        <code class="text-amber-400 text-sm">z.enum([...])</code>
+                    </div>
+                    <p class="text-xs text-gray-400">限定枚举值，AI 场景高频使用</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-pink-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-brackets-curly text-pink-400"></i>
+                        <code class="text-pink-400 text-sm">z.object({...})</code>
+                    </div>
+                    <p class="text-xs text-gray-400">嵌套对象，支持多层结构</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-cyan-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-layer-group text-cyan-400"></i>
+                        <code class="text-cyan-400 text-sm">z.array(z.T)</code>
+                    </div>
+                    <p class="text-xs text-gray-400">同类型元素组成的数组</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-gray-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-question-circle text-gray-400"></i>
+                        <code class="text-gray-300 text-sm">.optional()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">字段可选，undefined 合法</p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-gray-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-comment text-gray-400"></i>
+                        <code class="text-gray-300 text-sm">.describe()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">给 LLM 的描述提示，<strong class="text-amber-400">直接影响准确率</strong></p>
+                </div>
+                <div class="bg-white/5 border border-white/10 rounded-xl p-5 hover:border-gray-500/20 transition-colors">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-rotate text-gray-400"></i>
+                        <code class="text-gray-300 text-sm">.default()</code>
+                    </div>
+                    <p class="text-xs text-gray-400">未提供时使用默认值</p>
+                </div>
+            </div>
+            <div class="mt-8 inline-block bg-indigo-500/10 border border-indigo-500/30 rounded-xl px-6 py-3 text-indigo-200 text-sm">
+                <i class="fas fa-lightbulb text-amber-400 mr-2"></i> .describe() 会被 AI SDK 转为 JSON Schema 的 description，模型据此理解参数含义
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 8: Vercel AI SDK Tool Calling -->
+    <div class="slide glass-panel" id="slide-8">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text">AI SDK v6：Tool Calling 实战</h2>
+            <div class="code-block text-sm mb-8">
+<span class="keyword">import</span> { <span class="func">streamText</span>, <span class="func">tool</span>, <span class="func">stepCountIs</span> } <span class="keyword">from</span> <span class="string">'ai'</span>;
+<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
+
+<span class="comment">// 1. 定义工具</span>
+<span class="keyword">const</span> weatherTool = <span class="func">tool</span>({
+  description: <span class="string">'获取指定城市的当前天气'</span>,
+  inputSchema: z.<span class="func">object</span>({
+    city: z.<span class="func">string</span>().<span class="func">describe</span>(<span class="string">'城市名称'</span>),
+  }),
+  execute: <span class="keyword">async</span> ({ city }) => ({
+    temperature: <span class="const-val">25</span>, condition: <span class="string">'晴'</span>
+  }),
+});
+
+<span class="comment">// 2. 流式调用（Next.js API Route）</span>
+<span class="keyword">export async function</span> <span class="func">POST</span>(req: <span class="type">Request</span>) {
+  <span class="keyword">const</span> { messages } = <span class="keyword">await</span> req.<span class="func">json</span>();
+
+  <span class="keyword">const</span> result = <span class="func">streamText</span>({
+    model: <span class="func">google</span>(<span class="string">'gemini-2.5-flash'</span>),
+    messages,
+    tools: {
+      get_weather: weatherTool,     <span class="comment">// 传入工具集</span>
+      create_todo: createTodoTool,  <span class="comment">// 可传入多个</span>
+    },
+    stopWhen: <span class="func">stepCountIs</span>(<span class="const-val">5</span>),  <span class="comment">// 最多 5 步自动循环</span>
+  });
+
+  <span class="keyword">return</span> result.<span class="func">toUIMessageStreamResponse</span>();
+}
+            </div>
+            <div class="flex gap-6">
+                <div class="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
+                    <div class="text-emerald-400 font-semibold mb-1"><i class="fas fa-check mr-1"></i> 前端无需修改</div>
+                    <p class="text-sm text-gray-400">useChat 自动处理多轮 tool calling 交互</p>
+                </div>
+                <div class="flex-1 bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4">
+                    <div class="text-indigo-400 font-semibold mb-1"><i class="fas fa-check mr-1"></i> SDK 自动循环</div>
+                    <p class="text-sm text-gray-400">stopWhen 控制最大步数，SDK 自动回传结果</p>
+                </div>
+                <div class="flex-1 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                    <div class="text-amber-400 font-semibold mb-1"><i class="fas fa-check mr-1"></i> v6 新 API</div>
+                    <p class="text-sm text-gray-400">stopWhen 替代 v5 的 maxSteps</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 9: Structured Outputs -->
+    <div class="slide glass-panel" id="slide-9">
+        <div class="w-full max-w-5xl">
+            <h2 class="text-5xl font-bold mb-10 gradient-text-warm">Structured Outputs：结构化输出</h2>
+            <p class="text-gray-300 text-lg mb-8">让模型<strong class="text-white">直接返回符合 Schema 的 JSON 对象</strong>，而非文本。</p>
+            <div class="grid grid-cols-2 gap-10">
+                <div class="code-block text-sm">
+<span class="keyword">import</span> { <span class="func">generateText</span>, <span class="type">Output</span> } <span class="keyword">from</span> <span class="string">'ai'</span>;
+<span class="keyword">import</span> { z } <span class="keyword">from</span> <span class="string">'zod'</span>;
+
+<span class="keyword">const</span> { output } = <span class="keyword">await</span> <span class="func">generateText</span>({
+  model: <span class="func">google</span>(<span class="string">'gemini-2.5-flash'</span>),
+  output: <span class="type">Output</span>.<span class="func">object</span>({
+    schema: z.<span class="func">object</span>({
+      sentiment: z.<span class="func">enum</span>([
+        <span class="string">'positive'</span>,
+        <span class="string">'negative'</span>,
+        <span class="string">'neutral'</span>
+      ]),
+      confidence: z.<span class="func">number</span>()
+        .<span class="func">min</span>(<span class="const-val">0</span>).<span class="func">max</span>(<span class="const-val">1</span>),
+      keywords: z.<span class="func">array</span>(z.<span class="func">string</span>()),
+    }),
+  }),
+  prompt: <span class="string">'分析这句话的情感'</span>,
+});
+
+<span class="comment">// output 类型自动推断为:</span>
+<span class="comment">// { sentiment: 'positive'|...;</span>
+<span class="comment">//   confidence: number;</span>
+<span class="comment">//   keywords: string[] }</span>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-semibold mb-6 text-amber-400">Output 类型速查</h3>
+                    <div class="space-y-3">
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <code class="text-emerald-400 text-sm w-44 flex-shrink-0">Output.object()</code>
+                            <span class="text-gray-300 text-sm">返回结构化对象，最常用</span>
+                        </div>
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <code class="text-blue-400 text-sm w-44 flex-shrink-0">Output.array()</code>
+                            <span class="text-gray-300 text-sm">返回类型化数组</span>
+                        </div>
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <code class="text-purple-400 text-sm w-44 flex-shrink-0">Output.choice()</code>
+                            <span class="text-gray-300 text-sm">枚举选择，适合分类场景</span>
+                        </div>
+                        <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <code class="text-amber-400 text-sm w-44 flex-shrink-0">Output.json()</code>
+                            <span class="text-gray-300 text-sm">任意 JSON，无类型保障</span>
+                        </div>
+                    </div>
+                    <div class="mt-6 bg-pink-500/10 border border-pink-500/20 rounded-xl p-4 text-sm text-pink-200">
+                        <i class="fas fa-link mr-1"></i> <strong>可组合：</strong>Tool Calling + Structured Outputs 可在同一次请求中使用。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10: Project Goals -->
+    <div class="slide glass-panel" id="slide-10">
+        <div class="w-full max-w-4xl text-center">
+            <h2 class="text-5xl font-bold mb-12 gradient-text">本阶段实战目标</h2>
+            <div class="bg-white/5 border border-white/10 p-10 rounded-3xl text-left shadow-2xl">
+                <h3 class="text-3xl font-semibold mb-8 flex items-center">
+                    <span class="bg-emerald-500 text-white w-10 h-10 rounded-lg flex items-center justify-center mr-4 text-xl"><i class="fas fa-hand-pointer"></i></span>
+                    自然语言操控的智能 TodoList
+                </h3>
+                <div class="space-y-5 text-lg text-gray-300">
+                    <div class="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <span class="step-num bg-indigo-500/20 border border-indigo-500 text-indigo-400 text-sm">1</span>
+                        <span>用纯 TS 编写 <code class="text-indigo-400">createTodo</code> 和 <code class="text-indigo-400">getWeather</code> 两个工具函数</span>
+                    </div>
+                    <div class="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <span class="step-num bg-amber-500/20 border border-amber-500 text-amber-400 text-sm">2</span>
+                        <span>用 <strong class="text-amber-400">Zod</strong> 严格定义工具参数的 JSON Schema</span>
+                    </div>
+                    <div class="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <span class="step-num bg-emerald-500/20 border border-emerald-500 text-emerald-400 text-sm">3</span>
+                        <span>通过 <code class="text-emerald-400">tools</code> 参数将 Schema 传给大模型</span>
+                    </div>
+                    <div class="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <span class="step-num bg-pink-500/20 border border-pink-500 text-pink-400 text-sm">4</span>
+                        <span>解析模型的 Tool Call，在本地执行，将结果回传模型</span>
+                    </div>
+                    <div class="flex items-start gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors">
+                        <span class="step-num bg-cyan-500/20 border border-cyan-500 text-cyan-400 text-sm">5</span>
+                        <span>改造现有 <code class="text-cyan-400">api/chat/route.ts</code>，集成 Tool Calling</span>
+                    </div>
+                </div>
+                <div class="mt-10 grid grid-cols-3 gap-4">
+                    <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
+                        <div class="text-2xl font-bold text-emerald-400">zod</div>
+                        <div class="text-xs text-gray-500 mt-1">v4.3.6 已安装</div>
+                    </div>
+                    <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 text-center">
+                        <div class="text-2xl font-bold text-indigo-400">ai</div>
+                        <div class="text-xs text-gray-500 mt-1">v6.0.134 已安装</div>
+                    </div>
+                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
+                        <div class="text-2xl font-bold text-amber-400">0</div>
+                        <div class="text-xs text-gray-500 mt-1">新依赖需安装</div>
+                    </div>
+                </div>
+                <div class="mt-8 text-center">
+                    <p class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-500 animate-pulse">
+                        准备好让 AI 动手了吗？
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button class="btn" id="prevBtn" onclick="changeSlide(-1)"><i class="fas fa-chevron-left"></i></button>
+        <button class="btn" id="nextBtn" onclick="changeSlide(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        const progressBar = document.getElementById('progress');
+
+        function changeSlide(direction) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
+            slides[currentSlide].classList.add('active');
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            progressBar.style.width = progress + '%';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') changeSlide(1);
+            if (e.key === 'ArrowLeft') changeSlide(-1);
+        });
+
+        updateProgress();
+    </script>
+</body>
+</html>

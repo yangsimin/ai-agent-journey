@@ -2,8 +2,17 @@
 
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from '@ai-sdk/react';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import type { SubmitEvent } from 'react';
+
+interface Todo {
+  id: string;
+  title: string;
+  dueDate?: string;
+  priority: 'high' | 'medium' | 'low';
+  done: boolean;
+  createdAt: string;
+}
 
 interface Model {
   id: string;
@@ -31,6 +40,20 @@ export default function Chat() {
   
   const [isUploading, setIsUploading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [showTodos, setShowTodos] = useState(true);
+
+  const fetchTodos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/todos');
+      const data = await res.json();
+      setTodos(data.todos ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
+  const toggleTodoDone = async (id: string) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  };
 
   const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,6 +87,17 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isLoading = status === 'submitted' || status === 'streaming';
+
+  useEffect(() => {
+    fetchTodos();
+  }, [fetchTodos]);
+
+  // 消息发送完成后刷新 TodoList
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      fetchTodos();
+    }
+  }, [isLoading, messages.length, fetchTodos]);
   
   const currentModelObj = models.find(m => m.id === selectedModel);
 
@@ -162,7 +196,7 @@ export default function Chat() {
         </div>
 
         {/* 对话信息区域（主视区） */}
-        <div className="flex-1 overflow-y-auto px-1 scroll-smooth">
+        <div className={`${showTodos ? 'flex-[3]' : 'flex-1'} overflow-y-auto px-1 scroll-smooth min-h-0`}>
           <div className="space-y-6 pb-6">
             {messages.length === 0 && (
               <div className="text-center py-20 text-gray-400 dark:text-gray-600">
@@ -197,6 +231,62 @@ export default function Chat() {
             <div ref={messagesEndRef} className="h-px" />
           </div>
         </div>
+
+        {/* TodoList 面板 */}
+        {showTodos && (
+          <div className="flex-none border-t border-gray-100 dark:border-gray-800 mt-2 pt-2">
+            <button
+              onClick={() => setShowTodos(false)}
+              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-2 flex items-center gap-1"
+            >
+              <i className="fas fa-chevron-down text-[10px]"></i> 收起待办列表
+            </button>
+            <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
+              {todos.length === 0 ? (
+                <p className="text-xs text-gray-400 dark:text-gray-600 text-center py-4">暂无待办事项，试试对我说「帮我创建一个提醒」</p>
+              ) : (
+                todos.map(todo => {
+                  const itemClass = todo.done
+                    ? 'flex items-center gap-3 p-3 rounded-xl border transition-colors bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 opacity-60'
+                    : 'flex items-center gap-3 p-3 rounded-xl border transition-colors bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700';
+                  const checkClass = todo.done
+                    ? 'w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors bg-emerald-500 border-emerald-500'
+                    : 'w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors border-gray-300 dark:border-gray-600 hover:border-emerald-400';
+                  const prioClass = todo.priority === 'high'
+                    ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                    : todo.priority === 'medium'
+                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
+                  const prioLabel = todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低';
+
+                  return (
+                    <div key={todo.id} className={itemClass}>
+                      <button onClick={() => toggleTodoDone(todo.id)} className={checkClass}>
+                        {todo.done && <i className="fas fa-check text-white text-[10px]"></i>}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={todo.done ? 'text-sm truncate line-through text-gray-400' : 'text-sm truncate text-gray-800 dark:text-gray-100'}>{todo.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {todo.dueDate && <span className="text-[11px] text-gray-400"><i className="fas fa-calendar-alt mr-0.5"></i>{todo.dueDate}</span>}
+                          <span className={'text-[11px] px-1.5 py-0.5 rounded font-medium ' + prioClass}>{prioLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {!showTodos && (
+          <button
+            onClick={() => { setShowTodos(true); fetchTodos(); }}
+            className="flex-none text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mt-2 flex items-center gap-1"
+          >
+            <i className="fas fa-chevron-up text-[10px]"></i> 展开待办列表 {todos.length > 0 && `(${todos.length})`}
+          </button>
+        )}
 
         {/* 底部输入框 */}
         <form onSubmit={onSubmit} className="flex-none flex gap-2 sm:gap-3 mt-2 bg-white dark:bg-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
