@@ -31,15 +31,15 @@
   - [x] 制作 Level 2 精美幻灯片 (`docs/slides/level2.html`)
   - [ ] 在 `docs/qa.md` 中记录 RAG 相关的疑问
 - [ ] **知识点突破**
-  - [ ] 理解核心概念：Embedding (向量化), Chunking (文本切块) 以及 Cosine Similarity (余弦相似度)
-  - [ ] 阅读 LangChain.js 官方文档中的 "Retrieval" (检索) 章节
-  - [ ] 对比本地内存向量检索与云端向量数据库架构的差异
+  - [x] 理解核心概念：Embedding (向量化), Chunking (文本切块) 以及 Cosine Similarity (余弦相似度)
+  - [x] 阅读 LangChain.js 官方文档中的 "Retrieval" (检索) 章节
+  - [x] 对比本地内存向量检索与云端向量数据库架构的差异
   - [ ] 粗览一份云端向量数据库的快速入门文档 (推荐 Pinecone 或 Supabase pgvector)
 - [x] **代码实战（步骤一）：全栈内存 RAG 知识库**
   - [x] 核心数据结构：编写 `src/lib/vectorStore.ts` 实现全局单例的内存向量检索器（余弦相似度算法）
   - [x] 知识库上传模块 (UI & API)：在 `page.tsx` 增加可视化上传按钮，编写 `api/ingest/route.ts` 处理文件并调用 LangChain 切块与 Embedding
   - [x] 检索增强核心逻辑 (Retrieval & Synthesis)：改造 `api/chat/route.ts`，拦截提问进行 KNN 搜索并无缝组装至 System Prompt 中
-  - [ ] 万物联动验证：上传冷门测试文档并提问，验证 RAG 系统的实际信息召回率和幻觉抑制能力
+  - [x] 万物联动验证：上传冷门测试文档并提问，验证 RAG 系统的实际信息召回率和幻觉抑制能力
 - [ ] **代码实战（步骤二）：升级至持久化云端向量数据库**
   - [ ] 注册免费的云端向量数据库实例并获取连接凭证（推荐 Pinecone）
   - [ ] 编写脚本：将文本块及其向量永久存入云端数据库（不再随服务重启丢失）
