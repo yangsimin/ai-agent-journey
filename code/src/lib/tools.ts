@@ -1,7 +1,10 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
 
-// ========== 内存 Todo 数据存储 ==========
+// ========== Todo 数据存储 (本地文件) ==========
+// 解决 Next.js 开发环境下 API 路由隔离导致的内存丢失问题
 export interface Todo {
   id: string;
   title: string;
@@ -11,7 +14,29 @@ export interface Todo {
   createdAt: string;
 }
 
-export const todoStore: Todo[] = [];
+const TODOS_PATH = path.join(process.cwd(), '.todos.json');
+
+export function readTodos(): Todo[] {
+  try {
+    if (fs.existsSync(TODOS_PATH)) {
+      const data = fs.readFileSync(TODOS_PATH, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('读取 Todos 失败:', e);
+  }
+  return [];
+}
+
+export function writeTodos(todos: Todo[]) {
+  fs.writeFileSync(TODOS_PATH, JSON.stringify(todos, null, 2), 'utf-8');
+}
+
+export function addTodo(todo: Todo) {
+  const todos = readTodos();
+  todos.push(todo);
+  writeTodos(todos);
+}
 
 // ========== Mock 天气数据 ==========
 const weatherData: Record<string, { temperature: number; condition: string; humidity: number }> = {
@@ -42,7 +67,7 @@ export const createTodoTool = tool({
       done: false,
       createdAt: new Date().toISOString(),
     };
-    todoStore.push(todo);
+    addTodo(todo);
     return { success: true, todo };
   },
 });

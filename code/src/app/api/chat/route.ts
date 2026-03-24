@@ -19,6 +19,10 @@ export async function POST(req: Request) {
   let enhancedSystemPrompt = systemPrompt
     || '你是一个功能强大的 AI 助手。你可以帮助用户创建待办事项（提醒、任务、计划），也可以查询城市天气。请根据用户需求主动调用相应的工具。';
   
+  // 注入当前时间，帮助模型理解“明天”、“下周”等相对时间概念
+  const currentDate = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  enhancedSystemPrompt += `\n\n[系统提示：当前北京时间是 ${currentDate}]`;
+
   // 兼容直接传递的 content 和 Vercel AI SDK 3.x 传递的 parts 数组
   const lastMsg = messages[messages.length - 1];
   const latestMessage = lastMsg?.content || (lastMsg?.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')) || '';
@@ -50,7 +54,7 @@ export async function POST(req: Request) {
     messages: modelMessages,
     system: enhancedSystemPrompt,
     tools: myTools,
-    stopWhen: stepCountIs(5),
+    maxSteps: 5,
     onStepFinish({ stepNumber, toolCalls }) {
       if (toolCalls.length > 0) {
         console.log(`[Tool Call] Step ${stepNumber}:`, toolCalls.map(t => `${t.toolName}(${JSON.stringify(t.input)})`));
