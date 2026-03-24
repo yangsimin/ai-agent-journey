@@ -1,4 +1,5 @@
 import { google } from '@ai-sdk/google';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages, stepCountIs } from 'ai';
 import { searchStore } from '@/lib/vectorStore';
 import { embedText } from '@/lib/embeddings';
@@ -12,6 +13,19 @@ export async function POST(req: Request) {
 
   // 优先使用前端传入的 modelId，否则从环境变量读取，最后 fallback 到默认
   const modelName = modelId || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.0-flash';
+  
+  // 动态选择 Provider，判断逻辑：
+  // 1. 根据环境变量里的 DEFAULT_PROVIDER 配置
+  // 2. 如果没配，但模型名字里带了 claude 或者配了 Anthropic 的 KEY，就走 Anthropic，否则走 Google
+  const isAnthropic = process.env.DEFAULT_PROVIDER === 'anthropic' || modelName.includes('claude');
+  
+  // 支持 Anthropic 自定义 baseURL (如公司内部代理、网关)
+  const anthropicProvider = createAnthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL: process.env.ANTHROPIC_BASE_URL,
+  });
+
+  const modelInstance = isAnthropic ? anthropicProvider(modelName) : google(modelName);
 
   // 使用官方工具函数将 UIMessage[] 转换为 ModelMessage[]
   const modelMessages = await convertToModelMessages(messages);
@@ -50,7 +64,7 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: google(modelName),
+    model: modelInstance,
     messages: modelMessages,
     system: enhancedSystemPrompt,
     tools: myTools,
