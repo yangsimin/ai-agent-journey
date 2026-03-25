@@ -2,8 +2,33 @@
 
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from '@ai-sdk/react';
-import { useRef, useEffect, useState, useCallback } from 'react';
-import type { SubmitEvent } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
+import { Conversation, ConversationContent, ConversationEmptyState } from '@/components/ai-elements/conversation';
+import { Shimmer } from '@/components/ai-elements/shimmer';
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputTextarea,
+  PromptInputSubmit,
+} from '@/components/ai-elements/prompt-input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+
+// AI SDK v6 tool invocation part 的运行时类型
+interface ToolCallPart {
+  type: string;
+  toolCallId?: string;
+  toolName?: string;
+  state: string;
+  input?: Record<string, unknown>;
+  output?: unknown;
+  errorText?: string;
+}
 
 interface Todo {
   id: string;
@@ -78,28 +103,25 @@ export default function Chat() {
       alert('网络错误，导入出错：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsUploading(false);
-      e.target.value = ''; // 允许重复上传同一文件
+      e.target.value = '';
     }
   };
 
   const { messages, status, sendMessage } = useChat();
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isLoading = status === 'submitted' || status === 'streaming';
+  
+  const currentModelObj = models.find(m => m.id === selectedModel);
 
   useEffect(() => {
     fetchTodos();
   }, [fetchTodos]);
 
-  // 消息发送完成后刷新 TodoList
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
       fetchTodos();
     }
   }, [isLoading, messages.length, fetchTodos]);
-  
-  const currentModelObj = models.find(m => m.id === selectedModel);
 
   useEffect(() => {
     fetch('/api/models')
@@ -115,238 +137,203 @@ export default function Chat() {
       .finally(() => setModelsLoading(false));
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const onSubmit = (e: SubmitEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading || !selectedModel) return;
-    
-    // 获取当选选中的 Persona 的 Prompt
+  const handleSubmit = (message: { text: string }) => {
+    if (!message.text.trim() || isLoading || !selectedModel) return;
     const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
-    
-    sendMessage({ text: input }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
-    setInput('');
+    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-50/50 dark:bg-gray-950 font-sans">
+    <div className="flex flex-col h-dvh">
       <div className="flex flex-col w-full max-w-3xl mx-auto h-full p-2 sm:p-4 md:p-6 overflow-hidden">
         
-        {/* 极简头部栏 */}
-        <div className="flex-none mb-3 p-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-500 truncate text-lg">
-            AI 助手<span className="text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-1.5 py-0.5 rounded-md align-middle shadow-inner">实战版</span>
+        {/* 头部栏 */}
+        <header className="flex-none mb-3 p-3 rounded-2xl border shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 font-bold truncate text-lg">
+            AI 助手<Badge variant="secondary" className="text-[10px]">实战版</Badge>
           </div>
           
           <div className="flex items-center gap-2">
             {modelsLoading ? (
-              <div className="w-24 h-8 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
+              <div className="w-24 h-8 animate-pulse bg-muted rounded-lg" />
             ) : (
-              <select
+              <Select
                 value={selectedModel}
-                onChange={e => {
-                  setSelectedModel(e.target.value);
-                  localStorage.setItem('selectedModel', e.target.value);
-                }}
-                className="h-8 pl-3 md:pl-2 pr-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-sm truncate max-w-[120px] md:max-w-[180px]"
-                title={currentModelObj?.description}
+                onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
                 disabled={isLoading}
               >
-                {models.map(m => (
-                  <option key={m.id} value={m.id}>{m.displayName} {m.thinking ? '(Thinking)' : ''}</option>
-                ))}
-              </select>
+                <SelectTrigger className="w-[180px]" title={currentModelObj?.description}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.displayName} {m.thinking ? '(Thinking)' : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
 
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
+            <Separator orientation="vertical" className="h-4 mx-1 hidden sm:block" />
 
-            <label className={`relative flex items-center h-8 px-3 rounded-lg border text-xs font-semibold cursor-pointer shadow-sm transition-colors whitespace-nowrap ${
-              dbReady 
-                ? 'border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40' 
-                : 'border-indigo-200 dark:border-indigo-800/50 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'
-            }`}>
-              {isUploading ? (
-                <><i className="fas fa-spinner fa-spin mr-1.5 opacity-80"></i>吸收中...</>
-              ) : dbReady ? (
-                <><i className="fas fa-check-circle mr-1.5 opacity-80"></i>外脑已连接</>
-              ) : (
-                <><i className="fas fa-book mr-1.5 opacity-80"></i>上传知识库</>
-              )}
-              <input type="file" className="hidden" accept=".txt,.md,.mdx" onChange={onFileUpload} disabled={isUploading} />
-            </label>
+            <Button
+              variant={dbReady ? 'default' : 'secondary'}
+              size="sm"
+              disabled={isUploading}
+              onClick={() => document.getElementById('file-upload')?.click()}
+            >
+              {isUploading ? '吸收中...' : dbReady ? '外脑已连接' : '上传知识库'}
+              <input id="file-upload" type="file" className="hidden" accept=".txt,.md,.mdx" onChange={onFileUpload} />
+            </Button>
             
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+            <Separator orientation="vertical" className="h-4 mx-1" />
 
-            <select
+            <Select
               value={selectedPersona}
-              onChange={e => {
-                setSelectedPersona(e.target.value);
-                localStorage.setItem('selectedPersona', e.target.value);
-              }}
-              className="h-8 pl-3 md:pl-2 pr-6 rounded-lg border border-purple-200 dark:border-purple-800/50 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-xs font-semibold focus:ring-1 focus:ring-purple-500 cursor-pointer shadow-sm max-w-[110px]"
+              onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
               disabled={isLoading}
             >
-              {PERSONAS.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-[110px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERSONAS.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </header>
 
-        {/* 对话信息区域（主视区） */}
-        <div className={`${showTodos ? 'flex-[3]' : 'flex-1'} overflow-y-auto px-1 scroll-smooth min-h-0`}>
-          <div className="space-y-6 pb-6">
-            {messages.length === 0 && (
-              <div className="text-center py-20 text-gray-400 dark:text-gray-600">
-                <p className="text-lg">开始你的第一次对话吧！</p>
-                <p className="text-sm mt-2">试试问我：什么是 AI Agent？</p>
-              </div>
-            )}
-            {messages.map((m: UIMessage) => {
-              const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
-              const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
-              
-              // 提取 tool 相关的 parts（只展示 tool-invocation 和 tool-{name} 类型）
-              const toolParts = m.parts?.filter(p => p.type === 'tool-invocation' || (p.type.startsWith('tool-') && p.type !== 'tool-invocation')) ?? [];
-              // step-start / reasoning 等非 tool part 直接忽略，不展示
-              const hasTools = toolParts.length > 0;
-              
-              if (!hasText && !hasTools) return null;
-
-              return (
-                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className="max-w-[85%] flex flex-col gap-1.5 items-start">
-                    {hasText && (
-                      <div className={`rounded-3xl px-5 py-3 shadow-sm text-[15px] leading-relaxed break-words ${
-                        m.role === 'user'
-                          ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-blue-500/20'
-                          : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm shadow-gray-200/50 dark:shadow-none'
-                      }`}>
-                        {textParts.length > 0 ? (
-                          textParts.map((p, i) => <span key={i}>{(p as { type: 'text'; text: string }).text}</span>)
-                        ) : null}
-                      </div>
-                    )}
-                    {hasTools && (
-                      <div className={`flex flex-wrap gap-2 ${hasText ? 'ml-2 mt-0.5' : ''}`}>
-                        {toolParts.map((p, i) => {
-                          const toolData = p as { type: string; toolInvocation?: { toolName: string; state: string; result?: unknown }; state?: string; output?: unknown; result?: unknown };
-                          // 兼容嵌套 toolInvocation 和直接平铺的 tool-{name} 格式
-                          const inv = toolData.toolInvocation ?? (toolData as { toolName?: string; state?: string; result?: unknown });
-                          const toolName = inv.toolName ?? toolData.type.replace('tool-', '');
-                          const isComplete = inv.state === 'result' || !!inv.result || !!toolData.output;
-                          return (
-                            <div key={i} className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border shadow-sm transition-all ${isComplete ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/60 dark:border-blue-500/20'}`}>
-                              {isComplete ? (
-                                <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (
-                                <svg className="w-3.5 h-3.5 opacity-80 animate-spin" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                              )}
-                              <span className="font-mono tracking-tight">{toolName}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-              <div className="flex justify-start">
-                <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-3xl rounded-bl-sm px-6 py-4 shadow-sm flex space-x-2.5 items-center">
-                  <div className="w-2 h-2 bg-blue-400/80 rounded-full animate-bounce" />
-                  <div className="w-2 h-2 bg-blue-400/80 rounded-full animate-bounce delay-75" />
-                  <div className="w-2 h-2 bg-blue-400/80 rounded-full animate-bounce delay-150" />
-                </div>
-              </div>
-            )}
-            {/* 滚动锚点 */}
-            <div ref={messagesEndRef} className="h-px" />
-          </div>
-        </div>
-
-        {/* TodoList 面板 */}
-        {showTodos && (
-          <div className="flex-none border-t border-gray-100 dark:border-gray-800 mt-2 pt-2">
-            <button
-              onClick={() => setShowTodos(false)}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-2 flex items-center gap-1"
-            >
-              <i className="fas fa-chevron-down text-[10px]"></i> 收起待办列表
-            </button>
-            <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
-              {todos.length === 0 ? (
-                <p className="text-xs text-gray-400 dark:text-gray-600 text-center py-4">暂无待办事项，试试对我说「帮我创建一个提醒」</p>
+        {/* 对话区域 */}
+        <div className={`${showTodos ? 'flex-[3]' : 'flex-1'} min-h-0`}>
+          <Conversation className="h-full">
+            <ConversationContent>
+              {messages.length === 0 ? (
+                <ConversationEmptyState
+                  title="开始你的第一次对话吧！"
+                  description="试试问我：什么是 AI Agent？"
+                />
               ) : (
-                todos.map(todo => {
-                  const itemClass = todo.done
-                    ? 'flex items-center gap-3 p-3 rounded-xl border transition-colors bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 opacity-60'
-                    : 'flex items-center gap-3 p-3 rounded-xl border transition-colors bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700';
-                  const checkClass = todo.done
-                    ? 'w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors bg-emerald-500 border-emerald-500'
-                    : 'w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors border-gray-300 dark:border-gray-600 hover:border-emerald-400';
-                  const prioClass = todo.priority === 'high'
-                    ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                    : todo.priority === 'medium'
-                      ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                      : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400';
-                  const prioLabel = todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低';
+                <div className="space-y-6 pb-6">
+                  {messages.map((m: UIMessage) => {
+                    const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
+                    const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
 
-                  return (
-                    <div key={todo.id} className={itemClass}>
-                      <button onClick={() => toggleTodoDone(todo.id)} className={checkClass}>
-                        {todo.done && <i className="fas fa-check text-white text-[10px]"></i>}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className={todo.done ? 'text-sm truncate line-through text-gray-400' : 'text-sm truncate text-gray-800 dark:text-gray-100'}>{todo.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {todo.dueDate && <span className="text-[11px] text-gray-400"><i className="fas fa-calendar-alt mr-0.5"></i>{todo.dueDate}</span>}
-                          <span className={'text-[11px] px-1.5 py-0.5 rounded font-medium ' + prioClass}>{prioLabel}</span>
-                        </div>
+                    const toolParts = m.parts?.filter(
+                      p => p.type.startsWith('tool-')
+                    ) ?? [];
+                    const hasTools = toolParts.length > 0;
+
+                    if (!hasText && !hasTools) return null;
+
+                    return (
+                      <Message key={m.id} from={m.role}>
+                        <MessageContent>
+                          {/* 文本内容 - 使用 MessageResponse 渲染 Markdown */}
+                          {textParts.map((p, i) => (
+                            <MessageResponse key={i}>
+                              {(p as { type: 'text'; text: string }).text}
+                            </MessageResponse>
+                          ))}
+
+                          {/* 工具调用 - 使用 Tool 组件 */}
+                          {toolParts.map((p, i) => {
+                            const inv = p as unknown as ToolCallPart;
+                            const toolName = inv.toolName ?? inv.type;
+                            return (
+                              <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
+                                <ToolHeader
+                                  type={inv.type as `tool-${string}`}
+                                  state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
+                                />
+                                <ToolContent>
+                                  <ToolInput input={inv.input} />
+                                  {(inv.state === 'output-available' || inv.state === 'output-error') && (
+                                    <ToolOutput
+                                      output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
+                                      errorText={inv.errorText}
+                                    />
+                                  )}
+                                </ToolContent>
+                              </Tool>
+                            );
+                          })}
+                        </MessageContent>
+                      </Message>
+                    );
+                  })}
+
+                  {/* 加载指示器 */}
+                  {isLoading && status === 'submitted' && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+                    <Message from="assistant">
+                      <MessageContent>
+                        <Shimmer>思考中</Shimmer>
+                      </MessageContent>
+                    </Message>
+                  )}
+                </div>
+              )}
+            </ConversationContent>
+          </Conversation>
+        </div>
+
+        <Separator className="flex-none mt-2" />
+        {showTodos && (
+          <div className="flex-none py-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowTodos(false)} className="text-xs mb-2">
+              收起待办列表
+            </Button>
+            <div className="max-h-[200px] overflow-y-auto space-y-2">
+              {todos.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">暂无待办事项，试试对我说「帮我创建一个提醒」</p>
+              ) : (
+                todos.map(todo => (
+                  <div key={todo.id} className={"flex items-center gap-3 p-3 rounded-xl border" + (todo.done ? ' opacity-60' : '')}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleTodoDone(todo.id)}
+                      className={todo.done ? 'bg-primary text-primary-foreground' : ''}
+                    >
+                      {todo.done && '✓'}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <p className={"text-sm truncate" + (todo.done ? ' line-through text-muted-foreground' : '')}>{todo.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {todo.dueDate && <span className="text-xs text-muted-foreground">{todo.dueDate}</span>}
+                        <Badge variant={todo.priority === 'high' ? 'destructive' : 'secondary'} className="text-[11px]">
+                          {todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低'}
+                        </Badge>
                       </div>
                     </div>
-                  );
-                })
+                  </div>
+                ))
               )}
             </div>
           </div>
         )}
 
         {!showTodos && (
-          <button
-            onClick={() => { setShowTodos(true); fetchTodos(); }}
-            className="flex-none text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mt-2 flex items-center gap-1"
-          >
-            <i className="fas fa-chevron-up text-[10px]"></i> 展开待办列表 {todos.length > 0 && `(${todos.length})`}
-          </button>
+          <Button variant="ghost" size="sm" onClick={() => { setShowTodos(true); fetchTodos(); }} className="flex-none text-xs mt-2">
+            展开待办列表 {todos.length > 0 && `(${todos.length})`}
+          </Button>
         )}
 
         {/* 底部输入框 */}
-        <form onSubmit={onSubmit} className="flex-none flex gap-2 sm:gap-3 mt-2 bg-white dark:bg-gray-900 p-2 sm:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-          <input
-            className="flex-1 px-4 py-3 rounded-xl focus:outline-none bg-transparent hover:bg-gray-50 focus:bg-gray-50 dark:hover:bg-gray-800 dark:focus:bg-gray-800 transition-colors text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 text-[15px]"
-            value={input}
-            placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
-            onChange={e => setInput(e.target.value)}
-            disabled={isLoading || !selectedModel}
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim() || !selectedModel}
-            className="px-6 py-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium rounded-xl shadow-md hover:bg-black dark:hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-all text-sm sm:text-base whitespace-nowrap"
-          >
-            {isLoading ? '...' : '发送'}
-          </button>
-        </form>
+        <PromptInput
+          onSubmit={handleSubmit}
+          className="flex-none mt-2"
+        >
+          <PromptInputBody>
+            <PromptInputTextarea
+              placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
+              disabled={isLoading || !selectedModel}
+            />
+          </PromptInputBody>
+          <PromptInputFooter>
+            <PromptInputSubmit status={status} disabled={!selectedModel} />
+          </PromptInputFooter>
+        </PromptInput>
       </div>
     </div>
   );
