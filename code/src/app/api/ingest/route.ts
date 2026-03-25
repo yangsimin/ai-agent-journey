@@ -47,8 +47,8 @@ export async function POST(req: Request) {
       message: `Successfully ingested ${documentChunks.length} chunks into memory vector store.`,
       chunkCount: documentChunks.length
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Ingestion error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
   }
 }

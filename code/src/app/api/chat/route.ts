@@ -11,8 +11,8 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { messages, modelId, systemPrompt } = body;
 
-  // 优先使用前端传入的 modelId，否则从环境变量读取，最后 fallback 到默认
-  const modelName = modelId || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.0-flash';
+  // 环境变量 DEFAULT_MODEL 优先级最高，其次前端 modelId，最后 fallback
+  const modelName = process.env.DEFAULT_MODEL || modelId || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.0-flash';
   
   // 动态选择 Provider，判断逻辑：
   // 1. 根据环境变量里的 DEFAULT_PROVIDER 配置
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   // 兼容直接传递的 content 和 Vercel AI SDK 3.x 传递的 parts 数组
   const lastMsg = messages[messages.length - 1];
-  const latestMessage = lastMsg?.content || (lastMsg?.parts?.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')) || '';
+  const latestMessage = lastMsg?.content || (lastMsg?.parts?.filter((p: { type: string; text?: string }) => p.type === 'text').map((p: { type: string; text?: string }) => p.text).join('\n')) || '';
 
   // ========= RAG 核心检索逻辑 =========
   if (latestMessage) {
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     messages: modelMessages,
     system: enhancedSystemPrompt,
     tools: myTools,
-    maxSteps: 5,
+    stopWhen: stepCountIs(5),
     onStepFinish({ stepNumber, toolCalls }) {
       if (toolCalls.length > 0) {
         console.log(`[Tool Call] Step ${stepNumber}:`, toolCalls.map(t => `${t.toolName}(${JSON.stringify(t.input)})`));

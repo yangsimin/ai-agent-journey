@@ -74,8 +74,8 @@ export default function Chat() {
       } else {
         alert('导入知识库失败：' + data.error);
       }
-    } catch (err: any) {
-      alert('网络错误，导入出错：' + err.message);
+    } catch (err: unknown) {
+      alert('网络错误，导入出错：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsUploading(false);
       e.target.value = ''; // 允许重复上传同一文件
@@ -205,25 +205,13 @@ export default function Chat() {
               </div>
             )}
             {messages.map((m: UIMessage) => {
-              const hasText = (m.parts && m.parts.some(p => p.type === 'text' && (p as any).text.trim().length > 0)) || (m.content && m.content.trim().length > 0);
+              const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
+              const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
               
-              // 兼容最新 Vercel AI SDK 的 tool parts 结构 (e.g. { type: 'tool-create_todo', output: {...} })
-              let extractedTools: any[] = [];
-              if (m.toolInvocations && m.toolInvocations.length > 0) {
-                extractedTools = m.toolInvocations;
-              } else if (m.parts) {
-                extractedTools = m.parts
-                  .filter(p => p.type === 'tool-invocation' || p.type.startsWith('tool-'))
-                  .map((p: any) => {
-                    if (p.toolInvocation) return p.toolInvocation;
-                    return {
-                      toolName: p.type.replace('tool-', ''),
-                      state: p.state || (p.output ? 'result' : 'calling'),
-                      result: p.output
-                    };
-                  });
-              }
-              const hasTools = extractedTools && extractedTools.length > 0;
+              // 提取 tool 相关的 parts（只展示 tool-invocation 和 tool-{name} 类型）
+              const toolParts = m.parts?.filter(p => p.type === 'tool-invocation' || (p.type.startsWith('tool-') && p.type !== 'tool-invocation')) ?? [];
+              // step-start / reasoning 等非 tool part 直接忽略，不展示
+              const hasTools = toolParts.length > 0;
               
               if (!hasText && !hasTools) return null;
 
@@ -236,20 +224,22 @@ export default function Chat() {
                           ? 'bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-blue-500/20'
                           : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-100 rounded-bl-sm shadow-gray-200/50 dark:shadow-none'
                       }`}>
-                        {m.parts && m.parts.length > 0 ? (
-                          m.parts.filter(p => p.type === 'text').map((p, i) => <span key={i}>{(p as any).text}</span>)
-                        ) : (
-                          <span>{m.content}</span>
-                        )}
+                        {textParts.length > 0 ? (
+                          textParts.map((p, i) => <span key={i}>{(p as { type: 'text'; text: string }).text}</span>)
+                        ) : null}
                       </div>
                     )}
                     {hasTools && (
                       <div className={`flex flex-wrap gap-2 ${hasText ? 'ml-2 mt-0.5' : ''}`}>
-                        {extractedTools.map((tool, i) => {
-                          const isSuccess = 'result' in tool && tool.result;
+                        {toolParts.map((p, i) => {
+                          const toolData = p as { type: string; toolInvocation?: { toolName: string; state: string; result?: unknown }; state?: string; output?: unknown; result?: unknown };
+                          // 兼容嵌套 toolInvocation 和直接平铺的 tool-{name} 格式
+                          const inv = toolData.toolInvocation ?? (toolData as { toolName?: string; state?: string; result?: unknown });
+                          const toolName = inv.toolName ?? toolData.type.replace('tool-', '');
+                          const isComplete = inv.state === 'result' || !!inv.result || !!toolData.output;
                           return (
-                            <div key={i} className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border shadow-sm transition-all ${isSuccess ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/60 dark:border-blue-500/20'}`}>
-                              {isSuccess ? (
+                            <div key={i} className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border shadow-sm transition-all ${isComplete ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/60 dark:border-blue-500/20'}`}>
+                              {isComplete ? (
                                 <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -259,7 +249,7 @@ export default function Chat() {
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                               )}
-                              <span className="font-mono tracking-tight">{tool.toolName}</span>
+                              <span className="font-mono tracking-tight">{toolName}</span>
                             </div>
                           );
                         })}

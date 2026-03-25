@@ -1,11 +1,39 @@
 export async function GET() {
   const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  const anthropicBaseUrl = process.env.ANTHROPIC_BASE_URL;
 
-  let allModels: any[] = [];
+  let allModels: Array<{ id: string; displayName: string; description: string; inputTokenLimit: number; thinking: boolean; provider: string }> = [];
 
-  // 获取 Google 模型
-  if (googleApiKey) {
+  // ── 从 Anthropic 网关动态获取模型列表 ──
+  if (anthropicApiKey && anthropicBaseUrl) {
+    try {
+      const res = await fetch(`${anthropicBaseUrl.replace(/\/v1\/?$/, '')}/v1/models`, {
+        headers: { Authorization: `Bearer ${anthropicApiKey}` },
+      });
+      const data = await res.json();
+
+      if (data.data && Array.isArray(data.data)) {
+        const gatewayModels = data.data.map((m: { id: string }) => {
+          const shortName = m.id.includes('/') ? m.id.split('/').pop()! : m.id;
+          return {
+            id: m.id,
+            displayName: shortName,
+            description: `网关模型: ${m.id}`,
+            inputTokenLimit: 200000,
+            thinking: false,
+            provider: 'anthropic',
+          };
+        });
+        allModels = [...allModels, ...gatewayModels];
+      }
+    } catch (e) {
+      console.error('Failed to fetch gateway models', e);
+    }
+  }
+
+  // ── 获取 Google 模型 ──
+  if (googleApiKey && !googleApiKey.includes('your_')) {
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models?key=${googleApiKey}`
@@ -13,50 +41,22 @@ export async function GET() {
       const data = await res.json();
 
       const googleModels = (data.models ?? [])
-        .filter((m: any) =>
+        .filter((m: { supportedGenerationMethods?: string[] }) =>
           m.supportedGenerationMethods?.includes('generateContent')
         )
-        .map((m: any) => ({
-          id: m.name.replace('models/', ''), // e.g. "gemini-2.0-flash"
+        .map((m: { name: string; displayName?: string; description?: string; inputTokenLimit?: number; thinking?: boolean }) => ({
+          id: m.name.replace('models/', ''),
           displayName: m.displayName ?? m.name,
           description: m.description || '',
           inputTokenLimit: m.inputTokenLimit || 0,
           thinking: m.thinking || false,
-          provider: 'google'
+          provider: 'google',
         }));
-      
+
       allModels = [...allModels, ...googleModels];
     } catch (e) {
       console.error('Failed to fetch Google models', e);
     }
-  }
-
-  // 注入 Anthropic 模型 (因为 Anthropic 没有公开的 list models API，通常写死常用的)
-  if (anthropicApiKey) {
-    const anthropicModels = [
-      {
-        id: 'claude-3-7-sonnet-20250219',
-        displayName: 'Claude 3.7 Sonnet',
-        description: 'Anthropic 最智能的模型',
-        inputTokenLimit: 200000,
-        provider: 'anthropic'
-      },
-      {
-        id: 'claude-3-5-haiku-20241022',
-        displayName: 'Claude 3.5 Haiku',
-        description: 'Anthropic 速度最快的模型',
-        inputTokenLimit: 200000,
-        provider: 'anthropic'
-      },
-      {
-        id: 'claude-3-opus-20240229',
-        displayName: 'Claude 3 Opus',
-        description: 'Anthropic 强大的复杂任务模型',
-        inputTokenLimit: 200000,
-        provider: 'anthropic'
-      }
-    ];
-    allModels = [...allModels, ...anthropicModels];
   }
 
   if (allModels.length === 0) {
