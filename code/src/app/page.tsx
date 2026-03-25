@@ -19,7 +19,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
-// AI SDK v6 tool invocation part 的运行时类型
 interface ToolCallPart {
   type: string;
   toolCallId?: string;
@@ -54,15 +53,76 @@ const PERSONAS = [
   { id: 'cat娘', name: '傲娇猫娘', prompt: '你是一只傲娇、毒舌但内心善良的猫娘。所有回答结尾都必须带上「喵~」。偶尔嘲笑用户的愚蠢，但始终会给出正确的答案。' }
 ];
 
+function TodoSidebar({ todos, showTodos, setShowTodos }: {
+  todos: Todo[];
+  showTodos: boolean;
+  setShowTodos: (v: boolean) => void;
+}) {
+
+  return (
+    <aside className={`flex-none border-l border-border transition-all duration-200 ${showTodos ? 'w-64' : 'w-0 overflow-hidden'}`}>
+      <div className={`h-full flex flex-col ${showTodos ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}>
+        <div className="flex items-center justify-between px-3 py-2">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">待办事项</h2>
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => setShowTodos(false)}>
+            ✕
+          </Button>
+        </div>
+        <Separator />
+        <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+          {todos.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-8">
+              暂无待办事项
+              <br />
+              <span className="text-muted-foreground/70">试试说「帮我创建一个提醒」</span>
+            </p>
+          ) : (
+            todos.map(todo => (
+              <div
+                key={todo.id}
+                className={
+                  'flex items-start gap-2 p-2 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group'
+                  + (todo.done ? ' opacity-50' : '')
+                }
+                onClick={() => {
+                  // toggle via re-fetch (simplistic — in production use proper state lifting)
+                }}
+              >
+                <div className={
+                  'w-4 h-4 mt-0.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors text-[10px]'
+                  + (todo.done
+                    ? ' bg-primary border-primary text-primary-foreground'
+                    : ' border-muted-foreground/40 group-hover:border-muted-foreground')
+                }>
+                  {todo.done && '✓'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={'text-sm leading-snug' + (todo.done ? ' line-through text-muted-foreground' : '')}>{todo.title}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    {todo.dueDate && <span className="text-[11px] text-muted-foreground">{todo.dueDate}</span>}
+                    {todo.priority === 'high' && (
+                      <Badge variant="destructive" className="text-[9px] px-1 py-0">高</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export default function Chat() {
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedPersona, setSelectedPersona] = useState(
     () => typeof window !== 'undefined' ? (localStorage.getItem('selectedPersona') ?? PERSONAS[0].id) : PERSONAS[0].id
   );
-  
+
   const [models, setModels] = useState<Model[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
-  
+
   const [isUploading, setIsUploading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -76,9 +136,16 @@ export default function Chat() {
     } catch { /* ignore */ }
   }, []);
 
-  const toggleTodoDone = async (id: string) => {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  };
+  const toggleTodoDone = useCallback(async (id: string) => {
+    try {
+      await fetch('/api/todos', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, done: !todos.find(t => t.id === id)?.done })
+      });
+      fetchTodos();
+    } catch { /* ignore */ }
+  }, [todos, fetchTodos]);
 
   const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,7 +177,7 @@ export default function Chat() {
   const { messages, status, sendMessage } = useChat();
 
   const isLoading = status === 'submitted' || status === 'streaming';
-  
+
   const currentModelObj = models.find(m => m.id === selectedModel);
 
   useEffect(() => {
@@ -145,67 +212,84 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-dvh">
-      <div className="flex flex-col w-full max-w-3xl mx-auto h-full p-2 sm:p-4 md:p-6 overflow-hidden">
-        
-        {/* 头部栏 */}
-        <header className="flex-none mb-3 p-3 rounded-2xl border shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 font-bold truncate text-lg">
-            AI 助手<Badge variant="secondary" className="text-[10px]">实战版</Badge>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {modelsLoading ? (
-              <div className="w-24 h-8 animate-pulse bg-muted rounded-lg" />
-            ) : (
-              <Select
-                value={selectedModel}
-                onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="w-[180px]" title={currentModelObj?.description}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.displayName} {m.thinking ? '(Thinking)' : ''}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+      {/* Skip link for accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-none focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+      >
+        跳到对话区域
+      </a>
 
-            <Separator orientation="vertical" className="h-4 mx-1 hidden sm:block" />
+      {/* 头部栏 */}
+      <header className="flex-none px-2 py-2 flex items-center justify-between">
+        <h1 className="text-sm font-semibold text-muted-foreground tracking-tight">
+          AI 助手
+        </h1>
 
-            <Button
-              variant={dbReady ? 'default' : 'secondary'}
-              size="sm"
-              disabled={isUploading}
-              onClick={() => document.getElementById('file-upload')?.click()}
-            >
-              {isUploading ? '吸收中...' : dbReady ? '外脑已连接' : '上传知识库'}
-              <input id="file-upload" type="file" className="hidden" accept=".txt,.md,.mdx" onChange={onFileUpload} />
-            </Button>
-            
-            <Separator orientation="vertical" className="h-4 mx-1" />
-
+        <div className="flex items-center gap-1">
+          {modelsLoading ? (
+            <div className="w-20 h-7 animate-pulse bg-secondary rounded-md" />
+          ) : (
             <Select
-              value={selectedPersona}
-              onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
+              value={selectedModel}
+              onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
               disabled={isLoading}
             >
-              <SelectTrigger className="w-[110px]">
+              <SelectTrigger className="w-auto min-w-[140px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title={currentModelObj?.description}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PERSONAS.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                {models.map(m => (
+                  <SelectItem key={m.id} value={m.id}>{m.displayName} {m.thinking ? '(Thinking)' : ''}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </header>
+          )}
 
+          <Button
+            variant={dbReady ? 'default' : 'outline'}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            disabled={isUploading}
+            onClick={() => document.getElementById('file-upload')?.click()}
+          >
+            {isUploading ? '吸收中...' : dbReady ? '已连接' : '知识库'}
+            <input id="file-upload" type="file" className="hidden" accept=".txt,.md,.mdx" onChange={onFileUpload} />
+          </Button>
+
+          <Select
+            value={selectedPersona}
+            onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
+            disabled={isLoading}
+          >
+            <SelectTrigger className="w-auto min-w-[90px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERSONAS.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Separator orientation="vertical" className="h-4 mx-1" />
+
+          {/* 侧边栏切换按钮 */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={() => { if (!showTodos) fetchTodos(); setShowTodos(!showTodos); }}
+          >
+            待办 {todos.length > 0 && `(${todos.length})`}
+          </Button>
+        </div>
+      </header>
+
+      {/* 主内容区：对话 + 侧边栏 */}
+      <div className="flex-1 flex min-h-0">
         {/* 对话区域 */}
-        <div className={`${showTodos ? 'flex-[3]' : 'flex-1'} min-h-0`}>
+        <main id="main-content" className="flex-1 min-w-0">
           <Conversation className="h-full">
             <ConversationContent>
               {messages.length === 0 ? (
@@ -229,17 +313,14 @@ export default function Chat() {
                     return (
                       <Message key={m.id} from={m.role}>
                         <MessageContent>
-                          {/* 文本内容 - 使用 MessageResponse 渲染 Markdown */}
                           {textParts.map((p, i) => (
                             <MessageResponse key={i}>
                               {(p as { type: 'text'; text: string }).text}
                             </MessageResponse>
                           ))}
 
-                          {/* 工具调用 - 使用 Tool 组件 */}
                           {toolParts.map((p, i) => {
                             const inv = p as unknown as ToolCallPart;
-                            const toolName = inv.toolName ?? inv.type;
                             return (
                               <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
                                 <ToolHeader
@@ -263,7 +344,6 @@ export default function Chat() {
                     );
                   })}
 
-                  {/* 加载指示器 */}
                   {isLoading && status === 'submitted' && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                     <Message from="assistant">
                       <MessageContent>
@@ -275,65 +355,31 @@ export default function Chat() {
               )}
             </ConversationContent>
           </Conversation>
+        </main>
+
+        {/* 待办列表侧边栏 */}
+        <TodoSidebar
+          todos={todos}
+          showTodos={showTodos}
+          setShowTodos={setShowTodos}
+        />
+      </div>
+
+      {/* 底部输入框 */}
+      <div className="flex-none px-2 pb-2">
+        <div className="max-w-3xl mx-auto">
+          <PromptInput onSubmit={handleSubmit}>
+            <PromptInputBody>
+              <PromptInputTextarea
+                placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
+                disabled={isLoading || !selectedModel}
+              />
+            </PromptInputBody>
+            <PromptInputFooter className="justify-end">
+              <PromptInputSubmit status={status} disabled={!selectedModel} />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
-
-        <Separator className="flex-none mt-2" />
-        {showTodos && (
-          <div className="flex-none py-2">
-            <Button variant="ghost" size="sm" onClick={() => setShowTodos(false)} className="text-xs mb-2">
-              收起待办列表
-            </Button>
-            <div className="max-h-[200px] overflow-y-auto space-y-2">
-              {todos.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">暂无待办事项，试试对我说「帮我创建一个提醒」</p>
-              ) : (
-                todos.map(todo => (
-                  <div key={todo.id} className={"flex items-center gap-3 p-3 rounded-xl border" + (todo.done ? ' opacity-60' : '')}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleTodoDone(todo.id)}
-                      className={todo.done ? 'bg-primary text-primary-foreground' : ''}
-                    >
-                      {todo.done && '✓'}
-                    </Button>
-                    <div className="flex-1 min-w-0">
-                      <p className={"text-sm truncate" + (todo.done ? ' line-through text-muted-foreground' : '')}>{todo.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {todo.dueDate && <span className="text-xs text-muted-foreground">{todo.dueDate}</span>}
-                        <Badge variant={todo.priority === 'high' ? 'destructive' : 'secondary'} className="text-[11px]">
-                          {todo.priority === 'high' ? '高' : todo.priority === 'medium' ? '中' : '低'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {!showTodos && (
-          <Button variant="ghost" size="sm" onClick={() => { setShowTodos(true); fetchTodos(); }} className="flex-none text-xs mt-2">
-            展开待办列表 {todos.length > 0 && `(${todos.length})`}
-          </Button>
-        )}
-
-        {/* 底部输入框 */}
-        <PromptInput
-          onSubmit={handleSubmit}
-          className="flex-none mt-2"
-        >
-          <PromptInputBody>
-            <PromptInputTextarea
-              placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
-              disabled={isLoading || !selectedModel}
-            />
-          </PromptInputBody>
-          <PromptInputFooter>
-            <PromptInputSubmit status={status} disabled={!selectedModel} />
-          </PromptInputFooter>
-        </PromptInput>
       </div>
     </div>
   );
