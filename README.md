@@ -14,7 +14,7 @@
 本项目采用 Monorepo 风格管理：
 - `code/`: Next.js Web 应用核心代码（基于 Vercel AI SDK 和 Tailwind CSS）。
 - `docs/`: 学习笔记与任务追踪。
-  - [`agent-dev-roadmap.md`](./docs/agent-dev-roadmap.md) —— 详细的 Agent 开发学习进阶大纲笔记。
+  - [`todo.md`](./docs/todo.md) —— 详细的 Agent 学习进度跟踪表（含路线总览、防枯燥指南、各阶段知识点与实战 TODO）。
   - [`todo.md`](./docs/todo.md) —— 按周拆解的详细学习与开发打卡追踪清单。
   - [`qa.md`](./docs/qa.md) —— 记录开发和学习过程中遇到的 Q&A。
   - `slides/` —— 各个阶段学习总结的精美 HTML 幻灯片。

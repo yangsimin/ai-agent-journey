@@ -7,7 +7,7 @@ This project, **AI Agent Journey**, is a systematic learning and development rep
 - **Core Goal:** To learn and implement AI Agent capabilities step-by-step, from basic chat to complex autonomous agents.
 - **Architecture:** Monorepo-style structure with progressive learning levels.
   - `code/`: Next.js application demonstrating basic streaming chat using Vercel AI SDK and Google Gemini.
-  - `docs/`: Comprehensive roadmap (`agent-dev-roadmap.md`), task tracking (`todo.md`), and Q&A records (`qa.md`).
+  - `docs/`: Task tracking and learning roadmap (`todo.md`), and Q&A records (`qa.md`).
   - `docs/slides/`: Beautiful HTML slides (e.g., `level1.html`).
 - **Main Technologies:**
   - **Framework:** Next.js (App Router)
