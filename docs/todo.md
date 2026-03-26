@@ -74,7 +74,7 @@
 - [ ] **知识点突破**
   - [x] 阅读并理解模型官方文档关于 Function Calling / Tool Calling 的运转逻辑（参考 [OpenAI Function Calling 指南](https://platform.openai.com/docs/guides/function-calling)）
   - [x] 学习使用 **Zod** 定义强类型 Schema（大模型生成稳定输出的前端利器）（参考 [Zod 官方文档](https://zod.dev/)）
-  - [ ] 了解 Streaming + Tool Call 的前端 UX 处理方式（工具执行中 Loading 状态、中间步骤可视化）（参考 [Vercel AI SDK Tool Calling 文档](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)）
+  - [x] 了解 Streaming + Tool Call 的前端 UX 处理方式（工具执行中 Loading 状态、中间步骤可视化）（参考 [Vercel AI SDK Tool Calling 文档](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)）
   - [ ] 思考工具调用的错误处理与降级策略（调用失败、超时、模型拒绝执行时怎么办）（参考 [Vercel AI SDK Tool Calling 文档](https://ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling) 中错误处理部分）
 - [x] **代码实战：智能 TodoList（单工具调用）**
   - [x] 用纯 TS 编写两个本地函数：`createTodo` (存入本地数组 or localStorage) 和 `getWeather`

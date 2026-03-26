@@ -283,6 +283,16 @@ export default function Chat() {
           >
             待办 {todos.length > 0 && `(${todos.length})`}
           </Button>
+
+          <a href="/todos">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+            >
+              学习进度
+            </Button>
+          </a>
         </div>
       </header>
 
