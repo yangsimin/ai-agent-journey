@@ -1,18 +1,40 @@
 // LangChain Embedding 模块
 // 与 embeddings.ts 功能等价，使用 LangChain 的 Embeddings 接口
-// 对比学习：Vercel AI SDK embed()/embedMany() vs LangChain GoogleGenerativeAIEmbeddings
+// 对比学习：Vercel AI SDK embed()/embedMany() vs LangChain Embeddings
+//
+// 支持根据环境变量自动选择：
+//   LM_STUDIO_BASE_URL + LM_STUDIO_EMBEDDING_MODEL → 本地 LM Studio
+//   否则 → Google text-embedding-004
 
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import type { EmbeddingsInterface } from '@langchain/core/embeddings';
 
-// 全局单例
-let embeddingsInstance: GoogleGenerativeAIEmbeddings | null = null;
+let embeddingsInstance: EmbeddingsInterface | null = null;
 
-export function getLcEmbeddings(): GoogleGenerativeAIEmbeddings {
-  if (!embeddingsInstance) {
-    embeddingsInstance = new GoogleGenerativeAIEmbeddings({
-      model: 'text-embedding-004',
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+function createEmbeddings(): EmbeddingsInterface {
+  const lmStudioBaseUrl = process.env.LM_STUDIO_BASE_URL;
+  const lmStudioModel = process.env.LM_STUDIO_EMBEDDING_MODEL;
+
+  if (lmStudioBaseUrl && lmStudioModel) {
+    return new OpenAIEmbeddings({
+      model: lmStudioModel,
+      configuration: {
+        baseURL: lmStudioBaseUrl,
+      },
+      apiKey: 'lm-studio', // LM Studio 不校验 key
     });
+  }
+
+  return new GoogleGenerativeAIEmbeddings({
+    model: 'text-embedding-004',
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  });
+}
+
+export function getLcEmbeddings(): EmbeddingsInterface {
+  if (!embeddingsInstance) {
+    embeddingsInstance = createEmbeddings();
   }
   return embeddingsInstance;
 }

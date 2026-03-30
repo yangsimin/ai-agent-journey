@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import type { UIMessage } from '@ai-sdk/react';
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
 import { Conversation, ConversationContent, ConversationEmptyState } from '@/components/ai-elements/conversation';
@@ -115,18 +115,34 @@ function TodoSidebar({ todos, showTodos, setShowTodos }: {
   );
 }
 
+function ErrorBubble({ error }: { error: string }) {
+  return (
+    <div className="text-destructive text-sm bg-destructive/5 border border-destructive/20 rounded-lg p-3 break-all leading-relaxed">{error}</div>
+  );
+}
+
 /** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
-function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos }: {
+function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
   backend: 'vercel' | 'langchain';
   selectedModel: string;
   selectedPersona: string;
   fetchTodos: () => void;
+  chatErrorMap: Record<string, string>;
+  onChatError: (msg: string, msgId: string) => void;
 }) {
   const transport = new DefaultChatTransport({
     api: backend === 'langchain' ? '/api/chat-langchain' : '/api/chat',
   });
 
-  const { messages, status, sendMessage } = useChat({ transport });
+  const { messages, status, sendMessage } = useChat({
+    transport,
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      // 找到最后一条用户消息，将错误关联到该消息
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg?.id) onChatError(msg, lastUserMsg.id);
+    },
+  });
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -162,39 +178,42 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos }: {
                 ) ?? [];
                 const hasTools = toolParts.length > 0;
 
-                if (!hasText && !hasTools) return null;
+                if (!hasText && !hasTools && !chatErrorMap[m.id]) return null;
 
                 return (
-                  <Message key={m.id} from={m.role}>
-                    <MessageContent>
-                      {textParts.map((p, i) => (
-                        <MessageResponse key={i}>
-                          {(p as { type: 'text'; text: string }).text}
-                        </MessageResponse>
-                      ))}
+                  <React.Fragment key={m.id}>
+                    <Message from={m.role}>
+                      <MessageContent>
+                        {textParts.map((p, i) => (
+                          <MessageResponse key={i}>
+                            {(p as { type: 'text'; text: string }).text}
+                          </MessageResponse>
+                        ))}
 
-                      {toolParts.map((p, i) => {
-                        const inv = p as unknown as ToolCallPart;
-                        return (
-                          <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
-                            <ToolHeader
-                              type={inv.type as `tool-${string}`}
-                              state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
-                            />
-                            <ToolContent>
-                              <ToolInput input={inv.input} />
-                              {(inv.state === 'output-available' || inv.state === 'output-error') && (
-                                <ToolOutput
-                                  output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
-                                  errorText={inv.errorText}
-                                />
-                              )}
-                            </ToolContent>
-                          </Tool>
-                        );
-                      })}
-                    </MessageContent>
-                  </Message>
+                        {toolParts.map((p, i) => {
+                          const inv = p as unknown as ToolCallPart;
+                          return (
+                            <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
+                              <ToolHeader
+                                type={inv.type as `tool-${string}`}
+                                state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
+                              />
+                              <ToolContent>
+                                <ToolInput input={inv.input} />
+                                {(inv.state === 'output-available' || inv.state === 'output-error') && (
+                                  <ToolOutput
+                                    output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
+                                    errorText={inv.errorText}
+                                  />
+                                )}
+                              </ToolContent>
+                            </Tool>
+                          );
+                        })}
+                      </MessageContent>
+                    </Message>
+                    {chatErrorMap[m.id] && <ErrorBubble error={chatErrorMap[m.id]} />}
+                  </React.Fragment>
                 );
               })}
 
@@ -232,12 +251,9 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos }: {
 
 export default function Chat() {
   const [selectedModel, setSelectedModel] = useState('');
-  const [selectedPersona, setSelectedPersona] = useState(
-    () => typeof window !== 'undefined' ? (localStorage.getItem('selectedPersona') ?? PERSONAS[0].id) : PERSONAS[0].id
-  );
-  const [backend, setBackend] = useState<'vercel' | 'langchain'>(
-    () => typeof window !== 'undefined' ? (localStorage.getItem('selectedBackend') as 'vercel' | 'langchain' ?? 'vercel') : 'vercel'
-  );
+  const [selectedPersona, setSelectedPersona] = useState(PERSONAS[0].id);
+  const [backend, setBackend] = useState<'vercel' | 'langchain'>('vercel');
+  const [mounted, setMounted] = useState(false);
 
   const [models, setModels] = useState<Model[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -246,6 +262,7 @@ export default function Chat() {
   const [dbReady, setDbReady] = useState(false);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [showTodos, setShowTodos] = useState(true);
+  const [chatErrorMap, setChatErrorMap] = useState<Record<string, string>>({});
 
   const fetchTodos = useCallback(async () => {
     try {
@@ -298,6 +315,15 @@ export default function Chat() {
   useEffect(() => {
     fetchTodos();
   }, [fetchTodos]);
+
+  // 延迟读取 localStorage 避免 hydration mismatch
+  useEffect(() => {
+    const savedPersona = localStorage.getItem('selectedPersona');
+    if (savedPersona) setSelectedPersona(savedPersona);
+    const savedBackend = localStorage.getItem('selectedBackend') as 'vercel' | 'langchain' | null;
+    if (savedBackend) setBackend(savedBackend);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     fetch('/api/models')
@@ -422,6 +448,8 @@ export default function Chat() {
           selectedModel={selectedModel}
           selectedPersona={selectedPersona}
           fetchTodos={fetchTodos}
+          chatErrorMap={chatErrorMap}
+          onChatError={(msg, msgId) => setChatErrorMap(prev => ({ ...prev, [msgId]: msg }))}
         />
 
         {/* 待办列表侧边栏 */}

@@ -59,7 +59,9 @@ export async function POST(req: Request) {
         enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n====================\n【检索到的相关背景资料】\n请务必优先基于以下我为你检索到的内部知识库资料来直接回答用户的问题。如果是询问外部常规问题不受此限制：\n\n${contextText}\n====================`;
       }
     } catch (e) {
-      console.warn("RAG retrieval failed or store is empty, skipping.", e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      console.error('[RAG] 检索失败:', errMsg);
+      return Response.json({ error: `知识库检索失败: ${errMsg}` }, { status: 503 });
     }
   }
 
