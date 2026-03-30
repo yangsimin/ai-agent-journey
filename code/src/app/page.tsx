@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import type { UIMessage } from '@ai-sdk/react';
 import { useEffect, useState, useCallback } from 'react';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
@@ -114,10 +115,128 @@ function TodoSidebar({ todos, showTodos, setShowTodos }: {
   );
 }
 
+/** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
+function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos }: {
+  backend: 'vercel' | 'langchain';
+  selectedModel: string;
+  selectedPersona: string;
+  fetchTodos: () => void;
+}) {
+  const transport = new DefaultChatTransport({
+    api: backend === 'langchain' ? '/api/chat-langchain' : '/api/chat',
+  });
+
+  const { messages, status, sendMessage } = useChat({ transport });
+
+  const isLoading = status === 'submitted' || status === 'streaming';
+
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      fetchTodos();
+    }
+  }, [isLoading, messages.length, fetchTodos]);
+
+  const handleSubmit = (message: { text: string }) => {
+    if (!message.text.trim() || isLoading || !selectedModel) return;
+    const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
+    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
+  };
+
+  return (
+    <main id="main-content" className="flex-1 min-w-0 flex flex-col">
+      <Conversation className="flex-1 min-h-0">
+        <ConversationContent>
+          {messages.length === 0 ? (
+            <ConversationEmptyState
+              title="开始你的第一次对话吧！"
+              description="试试问我：什么是 AI Agent？"
+            />
+          ) : (
+            <div className="space-y-6 pb-6">
+              {messages.map((m: UIMessage) => {
+                const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
+                const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
+
+                const toolParts = m.parts?.filter(
+                  p => p.type.startsWith('tool-')
+                ) ?? [];
+                const hasTools = toolParts.length > 0;
+
+                if (!hasText && !hasTools) return null;
+
+                return (
+                  <Message key={m.id} from={m.role}>
+                    <MessageContent>
+                      {textParts.map((p, i) => (
+                        <MessageResponse key={i}>
+                          {(p as { type: 'text'; text: string }).text}
+                        </MessageResponse>
+                      ))}
+
+                      {toolParts.map((p, i) => {
+                        const inv = p as unknown as ToolCallPart;
+                        return (
+                          <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
+                            <ToolHeader
+                              type={inv.type as `tool-${string}`}
+                              state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
+                            />
+                            <ToolContent>
+                              <ToolInput input={inv.input} />
+                              {(inv.state === 'output-available' || inv.state === 'output-error') && (
+                                <ToolOutput
+                                  output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
+                                  errorText={inv.errorText}
+                                />
+                              )}
+                            </ToolContent>
+                          </Tool>
+                        );
+                      })}
+                    </MessageContent>
+                  </Message>
+                );
+              })}
+
+              {isLoading && status === 'submitted' && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+                <Message from="assistant">
+                  <MessageContent>
+                    <Shimmer>思考中</Shimmer>
+                  </MessageContent>
+                </Message>
+              )}
+            </div>
+          )}
+        </ConversationContent>
+      </Conversation>
+
+      {/* 底部输入框 — 在 <main> 内部，受 flex 布局约束不会遮住侧边栏 */}
+      <div className="flex-none px-2 pb-2">
+        <div className="max-w-3xl mx-auto">
+          <PromptInput onSubmit={handleSubmit}>
+            <PromptInputBody>
+              <PromptInputTextarea
+                placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
+                disabled={isLoading || !selectedModel}
+              />
+            </PromptInputBody>
+            <PromptInputFooter className="justify-end">
+              <PromptInputSubmit status={status} disabled={!selectedModel} />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export default function Chat() {
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedPersona, setSelectedPersona] = useState(
     () => typeof window !== 'undefined' ? (localStorage.getItem('selectedPersona') ?? PERSONAS[0].id) : PERSONAS[0].id
+  );
+  const [backend, setBackend] = useState<'vercel' | 'langchain'>(
+    () => typeof window !== 'undefined' ? (localStorage.getItem('selectedBackend') as 'vercel' | 'langchain' ?? 'vercel') : 'vercel'
   );
 
   const [models, setModels] = useState<Model[]>([]);
@@ -174,21 +293,11 @@ export default function Chat() {
     }
   };
 
-  const { messages, status, sendMessage } = useChat();
-
-  const isLoading = status === 'submitted' || status === 'streaming';
-
   const currentModelObj = models.find(m => m.id === selectedModel);
 
   useEffect(() => {
     fetchTodos();
   }, [fetchTodos]);
-
-  useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      fetchTodos();
-    }
-  }, [isLoading, messages.length, fetchTodos]);
 
   useEffect(() => {
     fetch('/api/models')
@@ -203,12 +312,6 @@ export default function Chat() {
       .catch(console.error)
       .finally(() => setModelsLoading(false));
   }, []);
-
-  const handleSubmit = (message: { text: string }) => {
-    if (!message.text.trim() || isLoading || !selectedModel) return;
-    const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
-    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
-  };
 
   return (
     <div className="flex flex-col h-dvh">
@@ -233,7 +336,7 @@ export default function Chat() {
             <Select
               value={selectedModel}
               onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
-              disabled={isLoading}
+              disabled={false}
             >
               <SelectTrigger className="w-auto min-w-[140px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title={currentModelObj?.description}>
                 <SelectValue />
@@ -260,7 +363,7 @@ export default function Chat() {
           <Select
             value={selectedPersona}
             onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
-            disabled={isLoading}
+            disabled={false}
           >
             <SelectTrigger className="w-auto min-w-[90px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0">
               <SelectValue />
@@ -273,6 +376,21 @@ export default function Chat() {
           </Select>
 
           <Separator orientation="vertical" className="h-4 mx-1" />
+
+          {/* 后端切换 — 切换时清空对话 */}
+          <Select
+            value={backend}
+            onValueChange={v => { if (v) { setBackend(v as 'vercel' | 'langchain'); localStorage.setItem('selectedBackend', v); } }}
+            disabled={false}
+          >
+            <SelectTrigger className="w-auto min-w-[100px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title="切换后端实现（会清空对话）">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="vercel">Vercel AI SDK</SelectItem>
+              <SelectItem value="langchain">LangChain</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* 侧边栏切换按钮 */}
           <Button
@@ -296,76 +414,15 @@ export default function Chat() {
         </div>
       </header>
 
-      {/* 主内容区：对话 + 侧边栏 */}
+      {/* 主内容区：对话 + 侧边栏 — backend 变化时重新挂载 ChatArea */}
       <div className="flex-1 flex min-h-0">
-        {/* 对话区域 */}
-        <main id="main-content" className="flex-1 min-w-0">
-          <Conversation className="h-full">
-            <ConversationContent>
-              {messages.length === 0 ? (
-                <ConversationEmptyState
-                  title="开始你的第一次对话吧！"
-                  description="试试问我：什么是 AI Agent？"
-                />
-              ) : (
-                <div className="space-y-6 pb-6">
-                  {messages.map((m: UIMessage) => {
-                    const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
-                    const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
-
-                    const toolParts = m.parts?.filter(
-                      p => p.type.startsWith('tool-')
-                    ) ?? [];
-                    const hasTools = toolParts.length > 0;
-
-                    if (!hasText && !hasTools) return null;
-
-                    return (
-                      <Message key={m.id} from={m.role}>
-                        <MessageContent>
-                          {textParts.map((p, i) => (
-                            <MessageResponse key={i}>
-                              {(p as { type: 'text'; text: string }).text}
-                            </MessageResponse>
-                          ))}
-
-                          {toolParts.map((p, i) => {
-                            const inv = p as unknown as ToolCallPart;
-                            return (
-                              <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
-                                <ToolHeader
-                                  type={inv.type as `tool-${string}`}
-                                  state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
-                                />
-                                <ToolContent>
-                                  <ToolInput input={inv.input} />
-                                  {(inv.state === 'output-available' || inv.state === 'output-error') && (
-                                    <ToolOutput
-                                      output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
-                                      errorText={inv.errorText}
-                                    />
-                                  )}
-                                </ToolContent>
-                              </Tool>
-                            );
-                          })}
-                        </MessageContent>
-                      </Message>
-                    );
-                  })}
-
-                  {isLoading && status === 'submitted' && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-                    <Message from="assistant">
-                      <MessageContent>
-                        <Shimmer>思考中</Shimmer>
-                      </MessageContent>
-                    </Message>
-                  )}
-                </div>
-              )}
-            </ConversationContent>
-          </Conversation>
-        </main>
+        <ChatArea
+          key={backend}
+          backend={backend}
+          selectedModel={selectedModel}
+          selectedPersona={selectedPersona}
+          fetchTodos={fetchTodos}
+        />
 
         {/* 待办列表侧边栏 */}
         <TodoSidebar
@@ -373,23 +430,6 @@ export default function Chat() {
           showTodos={showTodos}
           setShowTodos={setShowTodos}
         />
-      </div>
-
-      {/* 底部输入框 */}
-      <div className="flex-none px-2 pb-2">
-        <div className="max-w-3xl mx-auto">
-          <PromptInput onSubmit={handleSubmit}>
-            <PromptInputBody>
-              <PromptInputTextarea
-                placeholder={selectedModel ? '发条消息给助理...' : '模型加载中...'}
-                disabled={isLoading || !selectedModel}
-              />
-            </PromptInputBody>
-            <PromptInputFooter className="justify-end">
-              <PromptInputSubmit status={status} disabled={!selectedModel} />
-            </PromptInputFooter>
-          </PromptInput>
-        </div>
       </div>
     </div>
   );

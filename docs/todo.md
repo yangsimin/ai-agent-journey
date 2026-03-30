@@ -83,7 +83,7 @@
   - [x] 解析模型基于对话内容生成的函数调用意图 (Tool Call)，在本地真正执行对应代码
   - [x] 将函数执行结果回传给模型，总结成自然语言回复给用户
 - [ ] **代码实战：多工具链与容错**
-  - [ ] 改造现有代码，让 AI 在一次对话中连续调用多个工具（如"创建待办并查天气"组合指令）
+  - [x] 改造现有代码，让 AI 在一次对话中连续调用多个工具（如"创建待办并查天气"组合指令）
   - [ ] 为工具函数添加错误处理逻辑（try-catch 包裹、超时控制、失败时返回友好信息给模型）
   - [ ] 在前端展示工具执行的中间状态（如"正在创建待办..."、"正在查询天气..."的步骤指示器）
 
@@ -94,34 +94,35 @@
 **目标：** 将 Phase 1-3 基于 Vercel AI SDK 构建的后端逻辑用 LangChain.js 重写，通过"同一功能两种实现"深入理解框架抽象的设计哲学。
 
 - [ ] **可视化与记录**
-  - [ ] 在 `docs/qa.md` 中记录重构过程中的对比思考（Vercel AI SDK vs LangChain 各自的优劣势与适用场景）
+  - [x] 在 `docs/qa.md` 中记录重构过程中的对比思考（Vercel AI SDK vs LangChain 各自的优劣势与适用场景）
 - [ ] **知识点突破**
-  - [ ] 了解 LangChain.js 核心抽象概览：Document Loader、Text Splitter、Embedding、Vector Store 各自的职责与边界（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
+  - [x] 了解 LangChain.js 核心抽象概览：Document Loader、Text Splitter、Embedding、Vector Store 各自的职责与边界（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [x] 精读 LangChain.js 的 **Text Splitters** 模块（理解 chunkSize / chunkOverlap 参数的影响）（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [x] 理解 LangChain Retrieval Pipeline 的标准组件与数据流（已阅读官方文档 "Retrieval" 章节）（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [x] 对比 LangChain Vector Store 抽象与自实现的差异（何时用封装、何时手写更灵活）（参考 [LangChain.js Vector Store 集成列表](https://docs.langchain.com/oss/javascript/integrations/vectorstores)）
   - [ ] 了解 LangChain.js 的 **Dynamic Tool / StructuredTool** 封装模式，对比手写 Tool Definition 的优劣（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
   - [ ] 梳理两套框架的核心映射关系：`streamText` ↔ `.stream()`、`tool()` ↔ `DynamicTool`、`useChat` ↔ LangChain streaming response（参考 [Vercel AI SDK 文档](https://sdk.vercel.ai/docs) + [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [ ] 了解 LangChain 的模型抽象层（`ChatOpenAI`、`ChatGoogleGenerativeAI`），理解如何通过统一接口切换底层模型（参考 [LangChain.js Chat Model 集成列表](https://docs.langchain.com/oss/javascript/integrations/chat)）
-  - [ ] 了解 LangChain 的 **Retrieval Chain** 封装（`createRetrievalChain` / `RunnablePassthrough`），对比手动拼接 System Prompt 的方式（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
-  - [ ] 了解 LangChain **Agent Executor** 的工具调度机制，对比 Vercel AI SDK 的 `maxSteps` 自动循环（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
-- [ ] **代码实战：对话层重构**
-  - [ ] 用 LangChain Chat Model 替换 Vercel AI SDK 的 `streamText`，实现等价的流式对话输出
-  - [ ] 适配前端 `useChat` hook（保持前端不变，仅改造后端 API 的响应格式使其兼容）
-  - [ ] 验证上下文管理与 System Prompt 在 LangChain 下的等价实现（`SystemMessage`、`HumanMessage`、`AIMessage`）
-- [ ] **代码实战：RAG 层重构（含云端迁移）**
-  - [ ] 用 LangChain `Embeddings` 接口替换自写的 `embeddings.ts`（统一向量生成逻辑）
-  - [ ] 用 LangChain `MemoryVectorStore`（或 `FAISS`）替换自写的 `vectorStore.ts`，先在本地跑通
+  - [ ] 了解 LangChain 的 **Retrieval Chain** 封装（`dynamicSystemPromptMiddleware`），对比手动拼接 System Prompt 的方式（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
+  - [ ] 了解 LangChain **Agent** 的工具调度机制（`createAgent` + ReactAgent），对比 Vercel AI SDK 的 `maxSteps` 自动循环（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
+- [x] **代码实战：对话层重构**
+  - [x] 用 LangChain Chat Model 替换 Vercel AI SDK 的 `streamText`，实现等价的流式对话输出
+  - [x] 适配前端 `useChat` hook（通过 `@ai-sdk/langchain` 适配层保持前端不变）
+  - [x] 验证上下文管理与 System Prompt 在 LangChain 下的等价实现
+- [x] **代码实战：RAG 层重构（本地 MemoryVectorStore 先跑通）**
+  - [x] 用 LangChain `GoogleGenerativeAIEmbeddings` 接口替换自写的 `embeddings.ts`（统一向量生成逻辑）
+  - [x] 用 LangChain `MemoryVectorStore` 替换自写的 `vectorStore.ts`，本地跑通
   - [ ] 注册免费的云端向量数据库实例并获取连接凭证（推荐 Pinecone）
-  - [ ] 将 LangChain Vector Store 从本地内存切换为云端 Pinecone，实现数据持久化（不再随服务重启丢失）
-  - [ ] 用 LangChain Retrieval Chain 替换手动 KNN 搜索 + System Prompt 拼接逻辑
-  - [ ] 验证重构后 RAG 的召回效果与原版一致，并确认服务重启后数据不丢失
-- [ ] **代码实战：工具层重构**
-  - [ ] 用 LangChain `DynamicTool` / `StructuredTool` 封装 `createTodo` 和 `getWeather`
-  - [ ] 用 LangChain Agent（`.bindTools()` + Agent Executor）替换 Vercel AI SDK 的 `tools` 参数 + 手动解析 Tool Call
-  - [ ] 验证多工具连续调用在 LangChain 下的行为一致性
-- [ ] **重构总结**
-  - [ ] 梳理两套框架在"开发体验"、"类型安全"、"生态丰富度"三个维度的对比结论
+  - [ ] 将 LangChain Vector Store 从本地 MemoryVectorStore 切换为 FAISS 持久化
+  - [ ] 将 LangChain Vector Store 从本地迁移为云端 Pinecone，实现数据持久化
+  - [x] 用 LangChain `dynamicSystemPromptMiddleware` 替换手动 KNN 搜索 + System Prompt 拼接逻辑
+  - [ ] 验证重构后 RAG 的召回效果与原版一致（需手动测试）
+- [x] **代码实战：工具层重构**
+  - [x] 用 LangChain `tool()` 封装 `createTodo` 和 `getWeather`
+  - [x] 用 LangChain Agent（`createAgent` + ReactAgent）替换 Vercel AI SDK 的 `tools` 参数 + 手动解析 Tool Call
+  - [ ] 验证多工具连续调用在 LangChain 下的行为一致性（需手动测试）
+- [x] **重构总结**
+  - [x] 梳理两套框架在"开发体验"、"类型安全"、"生态丰富度"三个维度的对比结论
 
 ---
 
@@ -203,3 +204,7 @@
 - [ ] **总结与输出**
   - [ ] 撰写项目总结文档，回顾各阶段技术要点
   - [ ] 更新 `docs/qa.md` 完成全阶段知识沉淀
+
+
+## 其他
+- [ ] 重构成 page 路由

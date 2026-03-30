@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { Document } from '@langchain/core/documents';
 import { embedTexts } from '@/lib/embeddings';
 import { addChunks, clearStore, DocumentChunk } from '@/lib/vectorStore';
+import { addDocumentsToStore, clearLcStore } from '@/lib/vectorStore-langchain';
 
 export const maxDuration = 60; // 文本切分和求 API 获取向量的过程可能稍长
 
@@ -13,7 +15,6 @@ export async function POST(req: Request) {
     }
 
     // 1. 初始化分块器
-    // 假设是普通文本或者 Markdown，按字符层级进行智能拆分
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 800,
       chunkOverlap: 150,
@@ -27,24 +28,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Text too short or failed to split' }, { status: 400 });
     }
 
-    // 3. 调用 embedding 模型获取向量（由环境变量决定使用 LM Studio 还是 Google）
+    // 3. 调用 Vercel AI SDK embedding 模型获取向量
     const embeddings = await embedTexts(chunkTexts);
 
-    // 4. 清理旧库并装载新知识（由于我们做的是随用随抛的学习版，所以每次上传都覆盖旧的）
+    // 4. 写入 Vercel AI SDK 版向量存储
     clearStore();
-    
     const documentChunks: DocumentChunk[] = chunkTexts.map((content, i) => ({
       id: `${filename || 'doc'}-chunk-${i}`,
       text: content,
       vector: embeddings[i],
     }));
-
-    // 压入内存数组
     addChunks(documentChunks);
+
+    // 5. 同步写入 LangChain 版向量存储（双写，两套后端可随时切换）
+    clearLcStore();
+    const lcDocs: Document[] = chunkTexts.map((content, i) => new Document({
+      pageContent: content,
+      metadata: { source: filename || 'doc', chunkIndex: i },
+    }));
+    await addDocumentsToStore(lcDocs);
 
     return NextResponse.json({
       success: true,
-      message: `Successfully ingested ${documentChunks.length} chunks into memory vector store.`,
+      message: `Successfully ingested ${documentChunks.length} chunks into both vector stores.`,
       chunkCount: documentChunks.length
     });
   } catch (error: unknown) {
