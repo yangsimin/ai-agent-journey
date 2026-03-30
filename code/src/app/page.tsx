@@ -69,7 +69,7 @@ function TodoSidebar({ todos, showTodos, setShowTodos }: {
             ✕
           </Button>
         </div>
-        <Separator />
+        <div className="h-px w-full bg-border" />
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
           {todos.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-8">
@@ -401,7 +401,7 @@ export default function Chat() {
             </SelectContent>
           </Select>
 
-          <Separator orientation="vertical" className="h-4 mx-1" />
+          <div className="h-4 w-px bg-border mx-1" />
 
           {/* 后端切换 — 切换时清空对话 */}
           <Select

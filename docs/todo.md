@@ -100,11 +100,11 @@
   - [x] 精读 LangChain.js 的 **Text Splitters** 模块（理解 chunkSize / chunkOverlap 参数的影响）（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [x] 理解 LangChain Retrieval Pipeline 的标准组件与数据流（已阅读官方文档 "Retrieval" 章节）（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
   - [x] 对比 LangChain Vector Store 抽象与自实现的差异（何时用封装、何时手写更灵活）（参考 [LangChain.js Vector Store 集成列表](https://docs.langchain.com/oss/javascript/integrations/vectorstores)）
-  - [ ] 了解 LangChain.js 的 **Dynamic Tool / StructuredTool** 封装模式，对比手写 Tool Definition 的优劣（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
+  - [x] 了解 LangChain.js 的 **Dynamic Tool / StructuredTool** 封装模式，对比手写 Tool Definition 的优劣（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
   - [ ] 梳理两套框架的核心映射关系：`streamText` ↔ `.stream()`、`tool()` ↔ `DynamicTool`、`useChat` ↔ LangChain streaming response（参考 [Vercel AI SDK 文档](https://sdk.vercel.ai/docs) + [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
-  - [ ] 了解 LangChain 的模型抽象层（`ChatOpenAI`、`ChatGoogleGenerativeAI`），理解如何通过统一接口切换底层模型（参考 [LangChain.js Chat Model 集成列表](https://docs.langchain.com/oss/javascript/integrations/chat)）
-  - [ ] 了解 LangChain 的 **Retrieval Chain** 封装（`dynamicSystemPromptMiddleware`），对比手动拼接 System Prompt 的方式（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
-  - [ ] 了解 LangChain **Agent** 的工具调度机制（`createAgent` + ReactAgent），对比 Vercel AI SDK 的 `maxSteps` 自动循环（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
+  - [x] 了解 LangChain 的模型抽象层（`ChatOpenAI`、`ChatGoogleGenerativeAI`），理解如何通过统一接口切换底层模型（参考 [LangChain.js Chat Model 集成列表](https://docs.langchain.com/oss/javascript/integrations/chat)）
+  - [x] 了解 LangChain 的 **Retrieval Chain** 封装（`dynamicSystemPromptMiddleware`），对比手动拼接 System Prompt 的方式（参考 [LangChain.js Overview](https://docs.langchain.com/oss/javascript/langchain/overview)）
+  - [x] 了解 LangChain **Agent** 的工具调度机制（`createAgent` + ReactAgent），对比 Vercel AI SDK 的 `maxSteps` 自动循环（参考 [LangChain.js Agents 文档](https://docs.langchain.com/oss/javascript/langchain/agents)）
 - [x] **代码实战：对话层重构**
   - [x] 用 LangChain Chat Model 替换 Vercel AI SDK 的 `streamText`，实现等价的流式对话输出
   - [x] 适配前端 `useChat` hook（通过 `@ai-sdk/langchain` 适配层保持前端不变）
