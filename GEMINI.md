@@ -8,7 +8,8 @@ This project, **AI Agent Journey**, is a systematic learning and development rep
 - **Architecture:** Monorepo-style structure with progressive learning levels.
   - `code/`: Next.js application demonstrating basic streaming chat using Vercel AI SDK and Google Gemini.
   - `docs/`: Task tracking and learning roadmap (`todo.md`), and Q&A records (`qa.md`).
-  - `docs/slides/`: Beautiful HTML slides (e.g., `level1.html`).
+  - `docs/slides/`: Beautiful HTML slides (`level1.html`, `level2.html`, etc.).
+  - `docs/references/`: Reference materials including article summaries and concept notes.
 - **Main Technologies:**
   - **Framework:** Next.js (App Router)
   - **Language:** TypeScript

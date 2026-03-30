@@ -2,7 +2,7 @@
 
 针对前端（TS/JS）背景，这是一条"从零到一"的 Agent 学习路线。以"项目迭代"为主线，"查阅文档"为辅助，从聊天框到全链路 Agent，逐步掌握 RAG、Function Calling、LangChain、LangGraph、MCP 等核心能力。
 
-**路线速览：** 聊天框 (1-2周) → RAG 外挂硬盘 (3-4周) → Function Calling (5-6周) → LangChain 重构 (7周) → 整合实战 (8周) → LangGraph 编排 (9-10周) → MCP 协议 (11周) → 终局项目 (12-13周)
+**路线速览：** 聊天框 (1-2周) → RAG + Milvus (3-4周) → Function Calling + MCP (5-6周) → LangChain 重构 (7周) → 整合实战 (8周) → Next.js 工程化 (9周) → LangGraph 编排 (10-11周) → 语音交互 (12周) → 终局项目 (13-14周)
 
 ---
 
@@ -56,7 +56,7 @@
 - [ ] **知识点突破**
   - [x] 理解核心概念：Embedding (向量化), Chunking (文本切块) 以及 Cosine Similarity (余弦相似度)（参考 [OpenAI Embeddings 指南](https://platform.openai.com/docs/guides/embeddings)）
   - [x] 对比本地内存向量检索与云端向量数据库架构的差异
-  - [ ] 粗览一份云端向量数据库的快速入门文档（推荐 [Pinecone Quickstart](https://docs.pinecone.io/guides/get-started/quickstart) 或 [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector)）
+  - [ ] 粗览向量数据库入门文档（推荐 [Milvus 官方文档](https://milvus.io/docs) 或 [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector)，Pinecone 免费层限制多不推荐）
 - [x] **代码实战（步骤一）：全栈内存 RAG 知识库**
   - [x] 核心数据结构：编写 `src/lib/vectorStore.ts` 实现全局单例的内存向量检索器（余弦相似度算法）
   - [x] 知识库上传模块 (UI & API)：在 `page.tsx` 增加可视化上传按钮，编写 `api/ingest/route.ts` 处理文件并调用 LangChain 切块与 Embedding
@@ -86,6 +86,11 @@
   - [x] 改造现有代码，让 AI 在一次对话中连续调用多个工具（如"创建待办并查天气"组合指令）
   - [ ] 为工具函数添加错误处理逻辑（try-catch 包裹、超时控制、失败时返回友好信息给模型）
   - [ ] 在前端展示工具执行的中间状态（如"正在创建待办..."、"正在查询天气..."的步骤指示器）
+- [ ] **知识拓展：MCP（提前了解）**
+  - [ ] 阅读 [MCP 规范文档](https://modelcontextprotocol.io/)，理解 Server/Client 架构与通信机制（参考 [MCP 官方介绍](https://modelcontextprotocol.io/introduction)）
+  - [ ] 对比 MCP 与手写 Function Calling 的差异（标准化 vs 灵活性、生态复用）（参考 [MCP Core Architecture](https://modelcontextprotocol.io/docs/concepts/architecture)）
+  - [ ] 尝试接入一个开源 MCP Server（如 FileSystem MCP），体验跨进程工具调用（参考 [MCP Quickstart for Users](https://modelcontextprotocol.io/quickstart/user)）
+  - [ ] 了解主流 MCP Server 生态（参考 [MCP 官方 GitHub](https://github.com/modelcontextprotocol/servers) 与 [MCP Registry](https://registry.modelcontextprotocol.io/)）
 
 ---
 
@@ -112,9 +117,9 @@
 - [x] **代码实战：RAG 层重构（本地 MemoryVectorStore 先跑通）**
   - [x] 用 LangChain `GoogleGenerativeAIEmbeddings` 接口替换自写的 `embeddings.ts`（统一向量生成逻辑）
   - [x] 用 LangChain `MemoryVectorStore` 替换自写的 `vectorStore.ts`，本地跑通
-  - [ ] 注册免费的云端向量数据库实例并获取连接凭证（推荐 Pinecone）
-  - [ ] 将 LangChain Vector Store 从本地 MemoryVectorStore 切换为 FAISS 持久化
-  - [ ] 将 LangChain Vector Store 从本地迁移为云端 Pinecone，实现数据持久化
+  - [ ] 用 Docker 在本地启动 Milvus，获取连接地址（参考 [Milvus 快速开始](https://milvus.io/docs/install_standalone-docker.md)）
+  - [ ] 将 LangChain Vector Store 从 MemoryVectorStore 迁移至 Milvus，实现持久化
+  - [ ] 验证重启后向量数据仍可检索（持久化效果验证）
   - [x] 用 LangChain `dynamicSystemPromptMiddleware` 替换手动 KNN 搜索 + System Prompt 拼接逻辑
   - [ ] 验证重构后 RAG 的召回效果与原版一致（需手动测试）
 - [x] **代码实战：工具层重构**
@@ -143,7 +148,7 @@
 
 ---
 
-## 第六阶段：进阶"大脑编排" (第 9-10 周)
+## 第六阶段：进阶"大脑编排" (第 10-11 周)
 
 **目标：** 掌握状态机与 Agent 编排闭环工作流。
 
@@ -168,25 +173,44 @@
 
 ---
 
-## 第七阶段：接入标准化工具箱——MCP (第 11 周)
+## 第七阶段：Next.js 全栈工程化实战 (第 9 周)
 
-**目标：** 开拓眼界，接入生态通用协议，理解工具标准化趋势。
+**目标：** 将 Agent 能力从脚本层升级为可部署的全栈服务，掌握生产级 API 设计与数据持久化。
 
 - [ ] **可视化与记录**
-  - [ ] 制作 Level 5 精美幻灯片 (`docs/slides/level5.html`)
-  - [ ] 在 `docs/qa.md` 中记录 MCP 协议的理解与思考
+  - [ ] 在 `docs/qa.md` 中记录 Next.js App Router 与 AI 集成的工程化心得
 - [ ] **知识点突破**
-  - [ ] 阅读 Anthropic 的 [MCP 规范文档](https://modelcontextprotocol.io/)，理解 Server/Client 架构与通信机制
-  - [ ] 对比 MCP 与手写 Function Calling 的差异（标准化 vs 灵活性、接入成本、生态复用）
-  - [ ] 了解主流 MCP Server 生态（参考 [MCP 官方 GitHub](https://github.com/modelcontextprotocol/servers) 与 [MCP Registry](https://registry.modelcontextprotocol.io/)）
-- [ ] **代码实战：接入 MCP Server**
-  - [ ] 在本地尝试跑起一个开源现成的文件系统 MCP Server
-  - [ ] 摸索如何在主流客户端或自己的代码中直接对接这个 Server，免手写工具代码直接读取本地代码仓库
-  - [ ] 尝试将 MCP Server 的能力接入到之前构建的聊天助手项目中
+  - [ ] 深入理解 Next.js Route Handler 如何实现 SSE 流式响应（`ReadableStream` + `TransformStream`）（参考 [Next.js Route Handlers 文档](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)）
+  - [ ] 了解 Server Actions 与 API Route 在 AI 场景下的适用边界（参考 [Next.js Server Actions 文档](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)）
+  - [ ] 学习使用 **Prisma ORM** 进行数据建模与持久化（替代内存状态）（参考 [Prisma 快速入门](https://www.prisma.io/docs/getting-started/quickstart)）
+  - [ ] 了解接入 **LangSmith** 或 **Langfuse** 追踪 Agent 调用链（可观测性）（参考 [LangSmith 快速入门](https://docs.smith.langchain.com/observability/tutorials/tracing_and_observability)）
+- [ ] **代码实战：工程化升级**
+  - [ ] 重构现有 API Route，添加统一错误处理与超时控制
+  - [ ] 引入 Prisma，用数据库持久化对话历史（代替内存 messages 数组）
+  - [ ] 实现基于 Agent Tool Call 的自然语言提醒功能（自然语言 → 参数提取 → DB 持久化）
+  - [ ] 接入 LangSmith 追踪完整的 Agent 调用路径与耗时
 
 ---
 
-## 终局项目：全链路 Agent (第 12-13 周)
+## 第八阶段：语音交互（ASR + 流式 TTS）(第 12 周)
+
+**目标：** 为 Agent 添加语音输入输出能力，打造免手动操作的对话体验。
+
+- [ ] **可视化与记录**
+  - [ ] 在 `docs/qa.md` 中记录语音交互实现与延迟优化的思考
+- [ ] **知识点突破**
+  - [ ] 了解 ASR 选型：浏览器 Web Speech API（免费快速）vs Deepgram（低延迟精准）（参考 [MDN Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API) 与 [Deepgram Streaming ASR 文档](https://developers.deepgram.com/docs/getting-started-with-live-streaming-audio)）
+  - [ ] 了解 TTS 选型：浏览器 SpeechSynthesis API vs ElevenLabs Flash / Cartesia Sonic（支持流式）（参考 [MDN SpeechSynthesis](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis) 与 [ElevenLabs Streaming TTS 文档](https://elevenlabs.io/docs/api-reference/text-to-speech)）
+  - [ ] 理解流式 TTS 原理：LLM 逐句生成文本同步触发音频播放，降低首字延迟（参考 [Vercel AI SDK Speech 支持](https://ai-sdk.dev/docs/ai-sdk-core/speech)）
+- [ ] **代码实战：语音能力集成**
+  - [ ] 实现语音输入：接入 Web Speech API 或 Deepgram 实时语音转文字
+  - [ ] 实现基础 TTS：Agent 文字回复通过 SpeechSynthesis API 播放
+  - [ ] 实现流式 TTS：对接 ElevenLabs 流式接口，打字同时播音
+  - [ ] 完整串联验证：语音输入 → LLM → 流式语音输出端到端跑通
+
+---
+
+## 终局项目：全链路 Agent (第 13-14 周)
 
 **目标：** 贯穿所有阶段能力，打造一个完整的、可展示的 Agent 应用。
 
