@@ -8,6 +8,13 @@ import { createAgent, dynamicSystemPromptMiddleware } from 'langchain';
 import { getModel } from '@/lib/llm';
 import { lcTools } from '@/lib/tools-langchain';
 import { getLcVectorStore, readLcStore } from '@/lib/vectorStore-langchain';
+import { getMcpToolsAsLangChain, convertMcpToolToLangChain, type TransportType } from '@/lib/mcp-client';
+
+// 缓存 MCP 工具（避免每个请求都重新连接）
+let cachedLcMcpTools: ReturnType<typeof convertMcpToolToLangChain>[] | null = null;
+
+const getMcpTransportType = (): TransportType =>
+  process.env.MCP_TRANSPORT === 'http' ? 'http' : 'stdio';
 
 export const maxDuration = 30;
 
@@ -17,7 +24,7 @@ export async function POST(req: Request) {
 
   // 构建 system prompt 基础部分
   const baseSystemPrompt = systemPrompt
-    || '你是一个功能强大的 AI 助手。你可以帮助用户创建待办事项（提醒、任务、计划），也可以查询城市天气。请根据用户需求主动调用相应的工具。';
+    || '你是一个功能强大的 AI 助手。你可以帮助用户创建待办事项（提醒、任务、计划），也可以查询城市天气，还可以操作文件系统（读取、写入、列出目录、搜索文件等）。请根据用户需求主动调用相应的工具。';
 
   // 注入当前时间
   const currentDate = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -65,10 +72,24 @@ ${contextText}
     return baseSystemPrompt + '\n\n' + timePrompt + ragContext;
   });
 
+  // ========= 获取并合并 MCP 工具 =========
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let allLcTools: any[] = [...lcTools];
+  try {
+    if (!cachedLcMcpTools) {
+      const transportType = getMcpTransportType();
+      cachedLcMcpTools = await getMcpToolsAsLangChain({ transportType });
+    }
+    allLcTools = [...allLcTools, ...cachedLcMcpTools];
+  } catch {
+    // 加载失败时使用基础工具继续
+    cachedLcMcpTools = null; // 重置缓存，下次请求重试
+  }
+
   // 创建 LangChain Agent
   const agent = createAgent({
     model,
-    tools: lcTools,
+    tools: allLcTools,
     middleware: [systemMiddleware],
   });
 

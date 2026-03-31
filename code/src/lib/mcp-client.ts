@@ -15,6 +15,7 @@ import {
   CallToolResultSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { tool } from "ai";
+import { tool as lcTool } from "langchain";
 import { z } from "zod";
 import path from "path";
 
@@ -247,4 +248,40 @@ export async function closeMcpClient(): Promise<void> {
     isConnected = false;
     currentConfig = null;
   }
+}
+
+/**
+ * 将 MCP 工具转换为 LangChain 格式
+ * 对比：Vercel AI SDK 用 tool({ description, inputSchema, execute })
+ *       LangChain 用 tool(fn, { name, description, schema })
+ */
+export function convertMcpToolToLangChain(mcpTool: Tool) {
+  const zodSchema = convertJsonSchemaToZod(mcpTool.inputSchema as Record<string, unknown>);
+
+  return lcTool(
+    async (args: Record<string, unknown>) => {
+      try {
+        const result = await callMcpTool(mcpTool.name, args);
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return `工具调用失败: ${errorMessage}`;
+      }
+    },
+    {
+      name: mcpTool.name,
+      description: mcpTool.description || `MCP 工具: ${mcpTool.name}`,
+      schema: zodSchema,
+    }
+  );
+}
+
+/**
+ * 获取所有 MCP 工具（LangChain 格式）
+ */
+export async function getMcpToolsAsLangChain(
+  config?: Partial<McpClientConfig>
+): Promise<ReturnType<typeof convertMcpToolToLangChain>[]> {
+  const tools = await getMcpTools(config);
+  return tools.map(convertMcpToolToLangChain);
 }

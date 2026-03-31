@@ -92,6 +92,7 @@ export async function POST(req: Request) {
     allTools = { ...allTools, ...cachedMcpTools };
   } catch {
     // 加载失败时使用基础工具继续
+    cachedMcpTools = null; // 重置缓存，下次请求重试
   }
 
   const result = streamText({

@@ -1,3 +1,13 @@
+// Hardcoded fallback list used when Google's API is unreachable (e.g., network/proxy restrictions)
+const GOOGLE_FALLBACK_MODELS = [
+  { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', description: 'Fast, efficient multimodal model', inputTokenLimit: 1048576, thinking: false, provider: 'google' },
+  { id: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', description: 'Most capable Gemini model', inputTokenLimit: 1048576, thinking: true, provider: 'google' },
+  { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', description: 'Next-gen speed and performance', inputTokenLimit: 1048576, thinking: false, provider: 'google' },
+  { id: 'gemini-2.0-flash-thinking-exp', displayName: 'Gemini 2.0 Flash Thinking', description: 'Flash model with thinking mode', inputTokenLimit: 1048576, thinking: true, provider: 'google' },
+  { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', description: 'Long context, complex tasks', inputTokenLimit: 2097152, thinking: false, provider: 'google' },
+  { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', description: 'Fast and versatile', inputTokenLimit: 1048576, thinking: false, provider: 'google' },
+];
+
 export async function GET() {
   const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -32,15 +42,17 @@ export async function GET() {
     }
   }
 
-  // ── 获取 Google 模型 ──
+  // ── 获取 Google 模型（网络不通时使用内置备用列表）──
   if (googleApiKey && !googleApiKey.includes('your_')) {
+    let googleModels: typeof GOOGLE_FALLBACK_MODELS = [];
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${googleApiKey}`
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${googleApiKey}`,
+        { signal: AbortSignal.timeout(8000) } // 8s timeout to fail fast
       );
       const data = await res.json();
 
-      const googleModels = (data.models ?? [])
+      googleModels = (data.models ?? [])
         .filter((m: { supportedGenerationMethods?: string[] }) =>
           m.supportedGenerationMethods?.includes('generateContent')
         )
@@ -52,11 +64,12 @@ export async function GET() {
           thinking: m.thinking || false,
           provider: 'google',
         }));
-
-      allModels = [...allModels, ...googleModels];
     } catch (e) {
-      console.error('Failed to fetch Google models', e);
+      console.error('Failed to fetch Google models, using fallback list', e);
+      googleModels = GOOGLE_FALLBACK_MODELS;
     }
+
+    allModels = [...allModels, ...googleModels];
   }
 
   if (allModels.length === 0) {
