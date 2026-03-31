@@ -1,0 +1,28 @@
+{
+  "name": "filesystem-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for filesystem operations - supports stdio and HTTP transport",
+  "type": "module",
+  "main": "dist/stdio.js",
+  "bin": {
+    "filesystem-mcp-server": "dist/stdio.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start:stdio": "node dist/stdio.js",
+    "start:http": "node dist/http.js",
+    "dev:stdio": "tsc --watch",
+    "dev:http": "MCP_PORT=3001 node dist/http.js",
+    "inspector": "npx @modelcontextprotocol/inspector node dist/stdio.js",
+    "inspector:http": "npx @modelcontextprotocol/inspector"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "glob": "^10.3.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

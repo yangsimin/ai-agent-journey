@@ -7,7 +7,7 @@ import { createUIMessageStreamResponse } from 'ai';
 import { createAgent, dynamicSystemPromptMiddleware } from 'langchain';
 import { getModel } from '@/lib/llm';
 import { lcTools } from '@/lib/tools-langchain';
-import { getLcVectorStore } from '@/lib/vectorStore-langchain';
+import { getLcVectorStore, readLcStore } from '@/lib/vectorStore-langchain';
 
 export const maxDuration = 30;
 
@@ -27,8 +27,11 @@ export async function POST(req: Request) {
   const lastMsg = messages[messages.length - 1];
   const query = lastMsg?.content || (lastMsg?.parts?.filter((p: { type: string; text?: string }) => p.type === 'text').map((p: { type: string; text?: string }) => p.text).join('\n')) || '';
 
+  // 先检查知识库是否为空，避免空知识库时无意义的 embedding API 调用
+  const knowledgeBase = readLcStore();
+
   let ragContext = '';
-  if (query) {
+  if (query && knowledgeBase.length > 0) {
     try {
       const vectorStore = await getLcVectorStore();
       const retriever = vectorStore.asRetriever({ k: 10 });

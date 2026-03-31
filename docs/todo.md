@@ -53,10 +53,10 @@
 - [x] **可视化与记录**
   - [x] 制作 Level 2 精美幻灯片 (`docs/slides/level2.html`)
   - [x] 在 `docs/qa.md` 中记录 RAG 相关的疑问
-- [ ] **知识点突破**
+- [x] **知识点突破**
   - [x] 理解核心概念：Embedding (向量化), Chunking (文本切块) 以及 Cosine Similarity (余弦相似度)（参考 [OpenAI Embeddings 指南](https://platform.openai.com/docs/guides/embeddings)）
   - [x] 对比本地内存向量检索与云端向量数据库架构的差异
-  - [ ] 粗览向量数据库入门文档（推荐 [Milvus 官方文档](https://milvus.io/docs) 或 [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector)，Pinecone 免费层限制多不推荐）
+  - [x] 粗览向量数据库入门文档（推荐 [Milvus 官方文档](https://milvus.io/docs) 或 [Supabase pgvector](https://supabase.com/docs/guides/database/extensions/pgvector)，Pinecone 免费层限制多不推荐）
 - [x] **代码实战（步骤一）：全栈内存 RAG 知识库**
   - [x] 核心数据结构：编写 `src/lib/vectorStore.ts` 实现全局单例的内存向量检索器（余弦相似度算法）
   - [x] 知识库上传模块 (UI & API)：在 `page.tsx` 增加可视化上传按钮，编写 `api/ingest/route.ts` 处理文件并调用 LangChain 切块与 Embedding
@@ -87,10 +87,10 @@
   - [ ] 为工具函数添加错误处理逻辑（try-catch 包裹、超时控制、失败时返回友好信息给模型）
   - [ ] 在前端展示工具执行的中间状态（如"正在创建待办..."、"正在查询天气..."的步骤指示器）
 - [ ] **知识拓展：MCP（提前了解）**
-  - [ ] 阅读 [MCP 规范文档](https://modelcontextprotocol.io/)，理解 Server/Client 架构与通信机制（参考 [MCP 官方介绍](https://modelcontextprotocol.io/introduction)）
-  - [ ] 对比 MCP 与手写 Function Calling 的差异（标准化 vs 灵活性、生态复用）（参考 [MCP Core Architecture](https://modelcontextprotocol.io/docs/concepts/architecture)）
+  - [x] 阅读 [MCP 规范文档](https://modelcontextprotocol.io/)，理解 Server/Client 架构与通信机制（参考 [MCP 官方介绍](https://modelcontextprotocol.io/introduction)）
+  - [x] 对比 MCP 与手写 Function Calling 的差异（标准化 vs 灵活性、生态复用）（参考 [MCP Core Architecture](https://modelcontextprotocol.io/docs/concepts/architecture)）
   - [ ] 尝试接入一个开源 MCP Server（如 FileSystem MCP），体验跨进程工具调用（参考 [MCP Quickstart for Users](https://modelcontextprotocol.io/quickstart/user)）
-  - [ ] 了解主流 MCP Server 生态（参考 [MCP 官方 GitHub](https://github.com/modelcontextprotocol/servers) 与 [MCP Registry](https://registry.modelcontextprotocol.io/)）
+  - [x] 了解主流 MCP Server 生态（参考 [MCP 官方 GitHub](https://github.com/modelcontextprotocol/servers) 与 [MCP Registry](https://registry.modelcontextprotocol.io/)）
 
 ---
 

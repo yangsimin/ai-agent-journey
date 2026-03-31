@@ -22,7 +22,7 @@ interface StoredDoc {
 /**
  * 从 JSON 文件读取持久化的 Document 数据
  */
-function readStore(): StoredDoc[] {
+export function readLcStore(): StoredDoc[] {
   try {
     if (fs.existsSync(STORE_PATH)) {
       const data = fs.readFileSync(STORE_PATH, 'utf-8');
@@ -47,7 +47,7 @@ function writeStore(docs: StoredDoc[]) {
  */
 export async function getLcVectorStore(): Promise<MemoryVectorStore> {
   const embeddings = getLcEmbeddings();
-  const storedDocs = readStore();
+  const storedDocs = readLcStore();
 
   if (storedDocs.length === 0) {
     // 空库，直接返回新的 MemoryVectorStore
@@ -68,7 +68,7 @@ export async function getLcVectorStore(): Promise<MemoryVectorStore> {
  */
 export async function addDocumentsToStore(docs: Document[]): Promise<void> {
   // 先从持久化读取已有数据
-  const storedDocs = readStore();
+  const storedDocs = readLcStore();
 
   // 合并新文档
   const newDocs: StoredDoc[] = docs.map(d => ({

@@ -15,12 +15,18 @@ export function getModel(modelId?: string): BaseChatModel {
   const isAnthropic = process.env.DEFAULT_PROVIDER === 'anthropic' || modelName.includes('claude');
 
   if (isAnthropic) {
+    // LangChain ChatAnthropic 会追加 /v1/messages，所以 baseURL 不应包含 /v1
+    let anthropicBaseURL = process.env.ANTHROPIC_BASE_URL;
+    if (anthropicBaseURL?.endsWith('/v1')) {
+      anthropicBaseURL = anthropicBaseURL.slice(0, -3);
+    }
+
     return new ChatAnthropic({
       model: modelName,
       apiKey: process.env.ANTHROPIC_API_KEY,
       // 支持自定义 Anthropic API URL（如公司内部代理/网关）
-      ...(process.env.ANTHROPIC_BASE_URL && {
-        clientOptions: { baseURL: process.env.ANTHROPIC_BASE_URL },
+      ...(anthropicBaseURL && {
+        clientOptions: { baseURL: anthropicBaseURL },
       }),
     });
   }
