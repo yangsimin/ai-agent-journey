@@ -6,7 +6,8 @@ import type { UIMessage } from '@ai-sdk/react';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
-import { Conversation, ConversationContent, ConversationEmptyState } from '@/components/ai-elements/conversation';
+import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from '@/components/ai-elements/conversation';
+import { useStickToBottomContext } from 'use-stick-to-bottom';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import {
   PromptInput,
@@ -122,7 +123,8 @@ function ErrorBubble({ error }: { error: string }) {
 }
 
 /** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
-function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
+// 聊天内容组件 - 使用 useStickToBottomContext 必须在 StickToBottom 内部
+function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
   backend: 'vercel' | 'langchain';
   selectedModel: string;
   selectedPersona: string;
@@ -136,6 +138,7 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErr
 
   const { messages, status, sendMessage } = useChat({
     transport,
+    experimental_throttle: 16, // 约 60fps，让输出更流畅
     onError: (error) => {
       const msg = error instanceof Error ? error.message : String(error);
       // 找到最后一条用户消息，将错误关联到该消息
@@ -144,6 +147,7 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErr
     },
   });
 
+  const { scrollToBottom } = useStickToBottomContext();
   const isLoading = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
@@ -152,82 +156,113 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErr
     }
   }, [isLoading, messages.length, fetchTodos]);
 
+  // 发送消息后自动滚动到底部
+  useEffect(() => {
+    if (status === 'submitted') {
+      scrollToBottom();
+    }
+  }, [status, scrollToBottom]);
+
   const handleSubmit = (message: { text: string }) => {
     if (!message.text.trim() || isLoading || !selectedModel) return;
     const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
     sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
+    // 立即滚动到底部
+    setTimeout(() => scrollToBottom(), 0);
   };
 
   return (
     <main id="main-content" className="flex-1 min-w-0 flex flex-col">
-      <Conversation className="flex-1 min-h-0">
-        <ConversationContent>
-          {messages.length === 0 ? (
-            <ConversationEmptyState
-              title="开始你的第一次对话吧！"
-              description="试试问我：什么是 AI Agent？"
-            />
-          ) : (
-            <div className="space-y-6 pb-6">
-              {messages.map((m: UIMessage) => {
-                const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
-                const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
+      <ConversationContent>
+        {messages.length === 0 ? (
+          <ConversationEmptyState
+            title="开始你的第一次对话吧！"
+            description="试试问我：什么是 AI Agent？"
+          />
+        ) : (
+          <div className="space-y-6 pb-6">
+            {messages.map((m: UIMessage, index: number) => {
+              const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
+              // 流式输出时即使文本为空也要显示（避免闪烁）
+              const isLastMessage = index === messages.length - 1;
+              const isStreamingThis = isLoading && isLastMessage && m.role === 'assistant';
+              const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
 
-                const toolParts = m.parts?.filter(
-                  p => p.type.startsWith('tool-')
-                ) ?? [];
-                const hasTools = toolParts.length > 0;
+              const toolParts = m.parts?.filter(
+                p => p.type.startsWith('tool-')
+              ) ?? [];
+              const hasTools = toolParts.length > 0;
 
-                if (!hasText && !hasTools && !chatErrorMap[m.id]) return null;
+              // 流式输出中的消息始终显示，非流式消息需要有内容才显示
+              if (!isStreamingThis && !hasText && !hasTools && !chatErrorMap[m.id]) return null;
 
-                return (
-                  <React.Fragment key={m.id}>
-                    <Message from={m.role}>
-                      <MessageContent>
-                        {textParts.map((p, i) => (
-                          <MessageResponse key={i}>
-                            {(p as { type: 'text'; text: string }).text}
-                          </MessageResponse>
-                        ))}
+              return (
+                <React.Fragment key={m.id}>
+                  <Message from={m.role}>
+                    <MessageContent>
+                      {textParts.map((p, i) => (
+                        <MessageResponse key={i} isAnimating={isStreamingThis}>
+                          {(p as { type: 'text'; text: string }).text}
+                        </MessageResponse>
+                      ))}
 
-                        {toolParts.map((p, i) => {
-                          const inv = p as unknown as ToolCallPart;
-                          return (
-                            <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
-                              <ToolHeader
-                                type={inv.type as `tool-${string}`}
-                                state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
-                              />
-                              <ToolContent>
-                                <ToolInput input={inv.input} />
-                                {(inv.state === 'output-available' || inv.state === 'output-error') && (
-                                  <ToolOutput
-                                    output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
-                                    errorText={inv.errorText}
-                                  />
-                                )}
-                              </ToolContent>
-                            </Tool>
-                          );
-                        })}
-                      </MessageContent>
-                    </Message>
-                    {chatErrorMap[m.id] && <ErrorBubble error={chatErrorMap[m.id]} />}
-                  </React.Fragment>
-                );
-              })}
+                      {toolParts.map((p, i) => {
+                        const inv = p as unknown as ToolCallPart;
+                        return (
+                          <Tool key={i} defaultOpen={inv.state === 'output-available' || inv.state === 'output-error'}>
+                            <ToolHeader
+                              type={inv.type as `tool-${string}`}
+                              state={inv.state as 'input-streaming' | 'input-available' | 'output-available' | 'output-error'}
+                            />
+                            <ToolContent>
+                              <ToolInput input={inv.input} />
+                              {(inv.state === 'output-available' || inv.state === 'output-error') && (
+                                <ToolOutput
+                                  output={inv.output ? JSON.stringify(inv.output, null, 2) : undefined}
+                                  errorText={inv.errorText}
+                                />
+                              )}
+                            </ToolContent>
+                          </Tool>
+                        );
+                      })}
+                    </MessageContent>
+                  </Message>
+                  {chatErrorMap[m.id] && <ErrorBubble error={chatErrorMap[m.id]} />}
+                </React.Fragment>
+              );
+            })}
 
-              {isLoading && status === 'submitted' && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-                <Message from="assistant">
-                  <MessageContent>
-                    <Shimmer>思考中</Shimmer>
-                  </MessageContent>
-                </Message>
-              )}
-            </div>
-          )}
-        </ConversationContent>
-      </Conversation>
+            {/* Loading 效果：在提交后、最后一条 assistant 消息有内容前显示 */}
+            {isLoading && messages.length > 0 && (
+              // 找到最后一条消息
+              (() => {
+                const lastMsg = messages[messages.length - 1];
+                // 如果最后一条是用户消息，说明正在等待回复，显示 loading
+                if (lastMsg.role === 'user') {
+                  return true;
+                }
+                // 如果最后一条是 assistant 消息，检查它是否有文本内容
+                if (lastMsg.role === 'assistant') {
+                  const hasTextContent = lastMsg.parts?.some(
+                    p => p.type === 'text' && (p as { text: string }).text.trim().length > 0
+                  );
+                  // assistant 消息还没有文本内容时显示 loading
+                  return !hasTextContent;
+                }
+                return false;
+              })()
+            ) && (
+              <Message from="assistant">
+                <MessageContent>
+                  <Shimmer>思考中</Shimmer>
+                </MessageContent>
+              </Message>
+            )}
+          </div>
+        )}
+      </ConversationContent>
+      <ConversationScrollButton />
 
       {/* 底部输入框 — 在 <main> 内部，受 flex 布局约束不会遮住侧边栏 */}
       <div className="flex-none px-2 pb-2">
@@ -246,6 +281,22 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErr
         </div>
       </div>
     </main>
+  );
+}
+
+// ChatArea 包装组件，提供 StickToBottom 上下文
+function ChatArea(props: {
+  backend: 'vercel' | 'langchain';
+  selectedModel: string;
+  selectedPersona: string;
+  fetchTodos: () => void;
+  chatErrorMap: Record<string, string>;
+  onChatError: (msg: string, msgId: string) => void;
+}) {
+  return (
+    <Conversation className="flex-1 min-h-0">
+      <ChatContent {...props} />
+    </Conversation>
   );
 }
 

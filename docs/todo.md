@@ -89,7 +89,7 @@
 - [ ] **知识拓展：MCP（提前了解）**
   - [x] 阅读 [MCP 规范文档](https://modelcontextprotocol.io/)，理解 Server/Client 架构与通信机制（参考 [MCP 官方介绍](https://modelcontextprotocol.io/introduction)）
   - [x] 对比 MCP 与手写 Function Calling 的差异（标准化 vs 灵活性、生态复用）（参考 [MCP Core Architecture](https://modelcontextprotocol.io/docs/concepts/architecture)）
-  - [ ] 尝试接入一个开源 MCP Server（如 FileSystem MCP），体验跨进程工具调用（参考 [MCP Quickstart for Users](https://modelcontextprotocol.io/quickstart/user)）
+  - [x] 尝试接入一个开源 MCP Server（如 FileSystem MCP），体验跨进程工具调用（参考 [MCP Quickstart for Users](https://modelcontextprotocol.io/quickstart/user)）
   - [x] 了解主流 MCP Server 生态（参考 [MCP 官方 GitHub](https://github.com/modelcontextprotocol/servers) 与 [MCP Registry](https://registry.modelcontextprotocol.io/)）
 
 ---

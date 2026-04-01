@@ -5,20 +5,46 @@ import { cn } from "@/lib/utils";
 import type { UIMessage } from "ai";
 import { ArrowDownIcon, DownloadIcon } from "lucide-react";
 import type { ComponentProps } from "react";
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>;
 
-export const Conversation = ({ className, ...props }: ConversationProps) => (
-  <StickToBottom
-    className={cn("relative flex-1 overflow-y-hidden", className)}
-    initial="smooth"
-    resize="smooth"
-    role="log"
-    {...props}
-  />
-);
+// 用于检测是否在客户端的空订阅函数
+const emptySubscribe = () => () => {};
+
+// 仅客户端渲染的包装器，避免 use-stick-to-bottom 的 SSR hydration 问题
+const useIsClient = () => {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+};
+
+export const Conversation = ({ className, ...props }: ConversationProps) => {
+  const isClient = useIsClient();
+
+  if (!isClient) {
+    // 服务端渲染时返回一个占位符，保持布局稳定
+    return (
+      <div
+        className={cn("relative flex-1 overflow-y-auto", className)}
+        role="log"
+      />
+    );
+  }
+
+  return (
+    <StickToBottom
+      className={cn("relative flex-1 overflow-y-auto", className)}
+      initial="smooth"
+      resize="smooth"
+      role="log"
+      {...props}
+    />
+  );
+};
 
 export type ConversationContentProps = ComponentProps<
   typeof StickToBottom.Content

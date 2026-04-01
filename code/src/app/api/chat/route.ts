@@ -1,12 +1,15 @@
 import { google } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { streamText, convertToModelMessages, stepCountIs } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs, smoothStream } from 'ai';
 import { searchStore, readStore } from '@/lib/vectorStore';
 import { embedText } from '@/lib/embeddings';
 import { myTools } from '@/lib/tools';
 import { getMcpToolsAsAiSdk, convertMcpToolToAiSdk, type TransportType } from '@/lib/mcp-client';
 
 export const maxDuration = 30;
+
+// 中文分词器（用于 smoothStream 的平滑输出）
+const chineseSegmenter = new Intl.Segmenter('zh', { granularity: 'word' });
 
 // 缓存 MCP 工具（避免每个请求都重新连接）
 let cachedMcpTools: Record<string, ReturnType<typeof convertMcpToolToAiSdk>> | null = null;
@@ -101,6 +104,10 @@ export async function POST(req: Request) {
     system: enhancedSystemPrompt,
     tools: allTools,
     stopWhen: stepCountIs(5),
+    experimental_transform: smoothStream({
+      chunking: chineseSegmenter,
+      delayInMs: null, // 禁用延迟，让数据自然流动
+    }),
   });
 
   return result.toUIMessageStreamResponse();

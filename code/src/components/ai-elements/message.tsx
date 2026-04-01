@@ -331,12 +331,26 @@ export const MessageResponse = memo(
         className
       )}
       plugins={streamdownPlugins}
+      animated={{
+        animation: "fadeIn",
+        sep: "char",
+        stagger: 2,
+        duration: 80,
+      }}
       {...props}
     />
   ),
-  (prevProps, nextProps) =>
-    prevProps.children === nextProps.children &&
-    nextProps.isAnimating === prevProps.isAnimating
+  (prevProps, nextProps) => {
+    // 流式输出时（isAnimating=true），内容变化需要重新渲染
+    // 非流式输出时，只有内容完全相同时才跳过渲染
+    if (nextProps.isAnimating || prevProps.isAnimating) {
+      // 流式模式下，内容不同就重新渲染
+      return prevProps.children === nextProps.children;
+    }
+    // 非流式模式下，内容和动画状态都相同时跳过渲染
+    return prevProps.children === nextProps.children &&
+      nextProps.isAnimating === prevProps.isAnimating;
+  }
 );
 
 MessageResponse.displayName = "MessageResponse";
