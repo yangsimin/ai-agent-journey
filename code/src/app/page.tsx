@@ -3,7 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import type { UIMessage } from '@ai-sdk/react';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from '@/components/ai-elements/conversation';
@@ -18,7 +18,6 @@ import {
 } from '@/components/ai-elements/prompt-input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 
 interface ToolCallPart {
@@ -91,7 +90,7 @@ function TodoSidebar({ todos, showTodos, setShowTodos }: {
                 }}
               >
                 <div className={
-                  'w-4 h-4 mt-0.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors text-[10px]'
+                  'w-4 h-4 mt-0.5 rounded border shrink-0 flex items-center justify-center transition-colors text-[10px]'
                   + (todo.done
                     ? ' bg-primary border-primary text-primary-foreground'
                     : ' border-muted-foreground/40 group-hover:border-muted-foreground')
@@ -122,57 +121,36 @@ function ErrorBubble({ error }: { error: string }) {
   );
 }
 
-/** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
-// 聊天内容组件 - 使用 useStickToBottomContext 必须在 StickToBottom 内部
-function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
-  backend: 'vercel' | 'langchain';
-  selectedModel: string;
-  selectedPersona: string;
-  fetchTodos: () => void;
+/** 消息列表区域 — 必须在 StickToBottom (Conversation) 内部才能使用 useStickToBottomContext */
+function ScrollableMessages({
+  messages,
+  status,
+  isLoading,
+  chatErrorMap,
+  scrollFnRef,
+}: {
+  messages: UIMessage[];
+  status: string;
+  isLoading: boolean;
   chatErrorMap: Record<string, string>;
-  onChatError: (msg: string, msgId: string) => void;
+  scrollFnRef: React.MutableRefObject<(() => void) | null>;
 }) {
-  const transport = new DefaultChatTransport({
-    api: backend === 'langchain' ? '/api/chat-langchain' : '/api/chat',
-  });
-
-  const { messages, status, sendMessage } = useChat({
-    transport,
-    experimental_throttle: 16, // 约 60fps，让输出更流畅
-    onError: (error) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      // 找到最后一条用户消息，将错误关联到该消息
-      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-      if (lastUserMsg?.id) onChatError(msg, lastUserMsg.id);
-    },
-  });
-
   const { scrollToBottom } = useStickToBottomContext();
-  const isLoading = status === 'submitted' || status === 'streaming';
 
+  // 将 scrollToBottom 暴露给父组件（发送消息时调用）
   useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      fetchTodos();
-    }
-  }, [isLoading, messages.length, fetchTodos]);
+    scrollFnRef.current = scrollToBottom;
+  }, [scrollToBottom, scrollFnRef]);
 
-  // 发送消息后自动滚动到底部
+  // 流式输出时持续滚动到底部
   useEffect(() => {
-    if (status === 'submitted') {
+    if (status === 'streaming') {
       scrollToBottom();
     }
-  }, [status, scrollToBottom]);
-
-  const handleSubmit = (message: { text: string }) => {
-    if (!message.text.trim() || isLoading || !selectedModel) return;
-    const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
-    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
-    // 立即滚动到底部
-    setTimeout(() => scrollToBottom(), 0);
-  };
+  }, [messages, status, scrollToBottom]);
 
   return (
-    <main id="main-content" className="flex-1 min-w-0 flex flex-col">
+    <>
       <ConversationContent>
         {messages.length === 0 ? (
           <ConversationEmptyState
@@ -183,7 +161,6 @@ function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chat
           <div className="space-y-6 pb-6">
             {messages.map((m: UIMessage, index: number) => {
               const textParts = m.parts?.filter(p => p.type === 'text') ?? [];
-              // 流式输出时即使文本为空也要显示（避免闪烁）
               const isLastMessage = index === messages.length - 1;
               const isStreamingThis = isLoading && isLastMessage && m.role === 'assistant';
               const hasText = textParts.some(p => (p as { type: 'text'; text: string }).text.trim().length > 0);
@@ -193,7 +170,6 @@ function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chat
               ) ?? [];
               const hasTools = toolParts.length > 0;
 
-              // 流式输出中的消息始终显示，非流式消息需要有内容才显示
               if (!isStreamingThis && !hasText && !hasTools && !chatErrorMap[m.id]) return null;
 
               return (
@@ -201,7 +177,11 @@ function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chat
                   <Message from={m.role}>
                     <MessageContent>
                       {textParts.map((p, i) => (
-                        <MessageResponse key={i} isAnimating={isStreamingThis}>
+                        <MessageResponse
+                          key={i}
+                          isAnimating={isStreamingThis}
+                          animated={isStreamingThis ? false : { animation: 'fadeIn', sep: 'word', stagger: 15, duration: 200 }}
+                        >
                           {(p as { type: 'text'; text: string }).text}
                         </MessageResponse>
                       ))}
@@ -235,36 +215,86 @@ function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chat
 
             {/* Loading 效果：在提交后、最后一条 assistant 消息有内容前显示 */}
             {isLoading && messages.length > 0 && (
-              // 找到最后一条消息
               (() => {
                 const lastMsg = messages[messages.length - 1];
-                // 如果最后一条是用户消息，说明正在等待回复，显示 loading
-                if (lastMsg.role === 'user') {
-                  return true;
-                }
-                // 如果最后一条是 assistant 消息，检查它是否有文本内容
+                if (lastMsg.role === 'user') return true;
                 if (lastMsg.role === 'assistant') {
                   const hasTextContent = lastMsg.parts?.some(
                     p => p.type === 'text' && (p as { text: string }).text.trim().length > 0
                   );
-                  // assistant 消息还没有文本内容时显示 loading
                   return !hasTextContent;
                 }
                 return false;
               })()
             ) && (
-              <Message from="assistant">
-                <MessageContent>
-                  <Shimmer>思考中</Shimmer>
-                </MessageContent>
-              </Message>
-            )}
+                <Message from="assistant">
+                  <MessageContent>
+                    <Shimmer>思考中</Shimmer>
+                  </MessageContent>
+                </Message>
+              )}
           </div>
         )}
       </ConversationContent>
       <ConversationScrollButton />
+    </>
+  );
+}
 
-      {/* 底部输入框 — 在 <main> 内部，受 flex 布局约束不会遮住侧边栏 */}
+/** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
+function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
+  backend: 'vercel' | 'langchain';
+  selectedModel: string;
+  selectedPersona: string;
+  fetchTodos: () => void;
+  chatErrorMap: Record<string, string>;
+  onChatError: (msg: string, msgId: string) => void;
+}) {
+  const transport = new DefaultChatTransport({
+    api: backend === 'langchain' ? '/api/chat-langchain' : '/api/chat',
+  });
+
+  const { messages, status, sendMessage } = useChat({
+    transport,
+    experimental_throttle: 50,
+    onError: (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      if (lastUserMsg?.id) onChatError(msg, lastUserMsg.id);
+    },
+  });
+
+  const scrollFnRef = useRef<(() => void) | null>(null);
+  const isLoading = status === 'submitted' || status === 'streaming';
+
+  useEffect(() => {
+    if (!isLoading && messages.length > 0) {
+      fetchTodos();
+    }
+  }, [isLoading, messages.length, fetchTodos]);
+
+  const handleSubmit = (message: { text: string }) => {
+    if (!message.text.trim() || isLoading || !selectedModel) return;
+    const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
+    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
+    // 发送后滚动到底部（通过 ref 访问 StickToBottom 的 scrollToBottom）
+    setTimeout(() => scrollFnRef.current?.(), 50);
+  };
+
+  return (
+    <main id="main-content" className="flex-1 min-w-0 flex flex-col min-h-0">
+      {/* 消息滚动区域 — Conversation 只包裹消息列表，不包含输入框 */}
+      <Conversation className="flex-1 min-h-0">
+        <ScrollableMessages
+          messages={messages}
+          status={status}
+          isLoading={isLoading}
+          chatErrorMap={chatErrorMap}
+          scrollFnRef={scrollFnRef}
+        />
+      </Conversation>
+
+      {/* 底部输入框 — 在 Conversation 外部，不参与滚动，始终固定在底部 */}
       <div className="flex-none px-2 pb-2">
         <div className="max-w-3xl mx-auto">
           <PromptInput onSubmit={handleSubmit}>
@@ -284,27 +314,10 @@ function ChatContent({ backend, selectedModel, selectedPersona, fetchTodos, chat
   );
 }
 
-// ChatArea 包装组件，提供 StickToBottom 上下文
-function ChatArea(props: {
-  backend: 'vercel' | 'langchain';
-  selectedModel: string;
-  selectedPersona: string;
-  fetchTodos: () => void;
-  chatErrorMap: Record<string, string>;
-  onChatError: (msg: string, msgId: string) => void;
-}) {
-  return (
-    <Conversation className="flex-1 min-h-0">
-      <ChatContent {...props} />
-    </Conversation>
-  );
-}
-
 export default function Chat() {
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedPersona, setSelectedPersona] = useState(PERSONAS[0].id);
   const [backend, setBackend] = useState<'vercel' | 'langchain'>('vercel');
-  const [mounted, setMounted] = useState(false);
 
   const [models, setModels] = useState<Model[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -322,17 +335,6 @@ export default function Chat() {
       setTodos(data.todos ?? []);
     } catch { /* ignore */ }
   }, []);
-
-  const toggleTodoDone = useCallback(async (id: string) => {
-    try {
-      await fetch('/api/todos', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, done: !todos.find(t => t.id === id)?.done })
-      });
-      fetchTodos();
-    } catch { /* ignore */ }
-  }, [todos, fetchTodos]);
 
   const onFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -373,7 +375,6 @@ export default function Chat() {
     if (savedPersona) setSelectedPersona(savedPersona);
     const savedBackend = localStorage.getItem('selectedBackend') as 'vercel' | 'langchain' | null;
     if (savedBackend) setBackend(savedBackend);
-    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -415,7 +416,7 @@ export default function Chat() {
               onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
               disabled={false}
             >
-              <SelectTrigger className="w-auto min-w-[140px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title={currentModelObj?.description}>
+              <SelectTrigger className="w-auto min-w-35 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title={currentModelObj?.description}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -442,7 +443,7 @@ export default function Chat() {
             onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
             disabled={false}
           >
-            <SelectTrigger className="w-auto min-w-[90px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0">
+            <SelectTrigger className="w-auto min-w-22.5 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -460,7 +461,7 @@ export default function Chat() {
             onValueChange={v => { if (v) { setBackend(v as 'vercel' | 'langchain'); localStorage.setItem('selectedBackend', v); } }}
             disabled={false}
           >
-            <SelectTrigger className="w-auto min-w-[100px] h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title="切换后端实现（会清空对话）">
+            <SelectTrigger className="w-auto min-w-25 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title="切换后端实现（会清空对话）">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -156,7 +156,7 @@
   - [ ] 制作 Level 4 精美幻灯片 (`docs/slides/level4.html`)
   - [ ] 在 `docs/qa.md` 中记录复杂 Agent 架构的疑问
 - [ ] **知识点突破**
-  - [ ] 了解经典 Agent 工作模式：如 ReAct (Reason + Act) 模式，思考过程与执行交替（参考 [ReAct 原始论文](https://arxiv.org/abs/2210.03629)）
+  - [x] 了解经典 Agent 工作模式：如 ReAct (Reason + Act) 模式，思考过程与执行交替（参考 [ReAct 原始论文](https://arxiv.org/abs/2210.03629)）
   - [ ] 了解 **LCEL** (LangChain Expression Language) 的核心思想——Runnable 链式组合，理解 `pipe()` 与 `RunnableSequence` 如何将 LLM、Retriever、Parser 串联（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
   - [ ] 预研并阅读 **LangGraph.js** 官方教程的基础 State Graph 概念，理解图结构（State、Node、Edge）（参考 [LangGraph.js Quickstart](https://docs.langchain.com/oss/javascript/langgraph/quickstart)）
   - [ ] 了解 LangChain **Callbacks / Tracing** 机制，理解如何在链式调用中插入日志、计时和自定义钩子（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）

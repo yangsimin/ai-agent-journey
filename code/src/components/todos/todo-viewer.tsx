@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { TodoDocument, Phase, TaskGroup, TodoItem } from "@/lib/todo-parser";
 import { Button } from "@/components/ui/button";
@@ -19,12 +20,12 @@ export function TodoViewer({ data }: TodoViewerProps) {
       {/* 导航栏 */}
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <a
+          <Link
             href="/"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             ← 返回聊天
-          </a>
+          </Link>
           <h1 className="text-sm font-medium truncate max-w-[200px] sm:max-w-none">
             {data.title}
           </h1>

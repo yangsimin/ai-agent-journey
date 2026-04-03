@@ -102,8 +102,8 @@ const LineSpan = ({
     {keyedLine.tokens.length === 0
       ? "\n"
       : keyedLine.tokens.map(({ token, key }) => (
-          <TokenSpan key={key} token={token} />
-        ))}
+        <TokenSpan key={key} token={token} />
+      ))}
   </span>
 );
 
@@ -172,11 +172,11 @@ const createRawTokens = (code: string): TokenizedCode => ({
     line === ""
       ? []
       : [
-          {
-            color: "inherit",
-            content: line,
-          } as ThemedToken,
-        ]
+        {
+          color: "inherit",
+          content: line,
+        } as ThemedToken,
+      ]
   ),
 });
 
@@ -393,14 +393,10 @@ export const CodeBlockContent = ({
   const [asyncTokens, setAsyncTokens] = useState<TokenizedCode | null>(null);
   const asyncKeyRef = useRef({ code, language });
 
-  // Invalidate stale async tokens synchronously during render
-  if (
-    asyncKeyRef.current.code !== code ||
-    asyncKeyRef.current.language !== language
-  ) {
+  // Invalidate stale async tokens when code or language changes
+  useEffect(() => {
     asyncKeyRef.current = { code, language };
-    setAsyncTokens(null);
-  }
+  }, [code, language]);
 
   useEffect(() => {
     let cancelled = false;
