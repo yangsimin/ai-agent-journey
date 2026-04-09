@@ -139,8 +139,8 @@
   - [ ] 制作阶段整合幻灯片，梳理前四个阶段的知识脉络图
   - [ ] 在 `docs/qa.md` 中记录整合过程中遇到的跨阶段问题
 - [ ] **知识点突破**
-  - [ ] 理解 RAG 检索结果如何作为工具调用的上下文输入
-  - [ ] 思考"先检索再行动" vs "先行动再检索"两种策略的适用场景
+  - [x] 理解 RAG 检索结果如何作为工具调用的上下文输入
+  - [x] 思考"先检索再行动" vs "先行动再检索"两种策略的适用场景
 - [ ] **代码实战：复合型知识助手**
   - [ ] 构建一个同时挂载 RAG 检索和 Function Calling 工具的聊天系统
   - [ ] 实现场景：用户上传技术文档后，不仅能问答检索，还能让 AI 基于文档内容执行操作（如提取关键概念并创建学习待办）
@@ -157,16 +157,25 @@
   - [ ] 在 `docs/qa.md` 中记录复杂 Agent 架构的疑问
 - [ ] **知识点突破**
   - [x] 了解经典 Agent 工作模式：如 ReAct (Reason + Act) 模式，思考过程与执行交替（参考 [ReAct 原始论文](https://arxiv.org/abs/2210.03629)）
-  - [ ] 了解 **LCEL** (LangChain Expression Language) 的核心思想——Runnable 链式组合，理解 `pipe()` 与 `RunnableSequence` 如何将 LLM、Retriever、Parser 串联（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
-  - [ ] 预研并阅读 **LangGraph.js** 官方教程的基础 State Graph 概念，理解图结构（State、Node、Edge）（参考 [LangGraph.js Quickstart](https://docs.langchain.com/oss/javascript/langgraph/quickstart)）
-  - [ ] 了解 LangChain **Callbacks / Tracing** 机制，理解如何在链式调用中插入日志、计时和自定义钩子（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
-  - [ ] 了解 Agent 可观测性工具（如 [LangSmith](https://docs.langchain.com/langsmith/home) 或 [Langfuse](https://langfuse.com/docs)），学会追踪和调试多步工作流
+  - [x] 了解 **LCEL** (LangChain Expression Language) 的核心思想——Runnable 链式组合，理解 `pipe()` 与 `RunnableSequence` 如何将 LLM、Retriever、Parser 串联（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
+  - [x] 预研并阅读 **LangGraph.js** 官方教程的基础 State Graph 概念，理解图结构（State、Node、Edge）（参考 [LangGraph.js Quickstart](https://docs.langchain.com/oss/javascript/langgraph/quickstart)）
+  - [x] 了解 LangChain **Callbacks / Tracing** 机制，理解如何在链式调用中插入日志、计时和自定义钩子（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
+  - [x] 了解 Agent 可观测性工具（如 [LangSmith](https://docs.langchain.com/langsmith/home) 或 [Langfuse](https://langfuse.com/docs)），学会追踪和调试多步工作流
   - [ ] 初步思考 Agent 输出质量评估方法（RAG 召回率、工具调用准确率、最终输出可用性）（参考 [LangSmith 评估文档](https://docs.langchain.com/langsmith/evaluation-quickstart)）
-- [ ] **代码实战：自主技术博文调研员**
-  - [ ] 规划工作流并定义好状态机数据结构 (`State`)
-  - [ ] 编写各个功能节点 (Nodes)：如搜索资料节点、提取摘要节点、写初稿节点
-  - [ ] 设置核心的**条件判断连线** (Conditional Edges)：如果"摘要发现信息不足"则重新路由回搜索节点
-  - [ ] 跑通完整的 LangGraph 闭环工作流，给出万字长文级别的最终输出
+- [ ] **代码实战：AI 文字 RPG 游戏引擎**
+  > 用 LangGraph 的状态机驱动一款可玩的文字冒险游戏。玩家用自然语言行动，Agent 负责演绎世界、推进剧情、判断生死。天然契合 LangGraph 的所有核心概念：有状态、有循环、有条件分支、有人机交互节点。
+  - [ ] 定义游戏状态结构 (`GameState`)：场景描述、玩家 HP / 物品栏、已发生事件列表、胜负标志
+  - [ ] 编写功能节点 (Nodes)
+    - `scene_narrator`：根据当前状态生成沉浸式场景描述
+    - `action_parser`：解析玩家输入，识别意图（战斗 / 探索 / 对话 / 使用道具）
+    - `consequence_evaluator`：判断行动结果，更新状态（伤害计算、道具获取、剧情触发）
+    - `npc_responder`：NPC 对话节点，有独立"记忆"与性格 Prompt
+  - [ ] 设置条件连线 (Conditional Edges)
+    - HP ≤ 0 → `game_over` 节点（生成死亡结局）
+    - 触发胜利条件 → `victory` 节点（生成结局彩蛋）
+    - 否则 → 循环回 `scene_narrator` 继续下一回合
+  - [ ] 接入人机交互节点 (`interrupt`)：每轮等待真实玩家输入，体验 LangGraph 的 Human-in-the-Loop 机制
+  - [ ] 前端集成：在现有聊天界面中展示 HP 血条、物品栏状态面板，让游戏状态可视化
 - [ ] **进阶实践：可观测性与调优**
   - [ ] 接入 LangSmith 或 Langfuse，追踪 Agent 每一步的输入输出与耗时
   - [ ] 根据追踪数据优化工作流（如调整检索 Top-K、修改 Prompt、增加/减少节点）
@@ -232,3 +241,5 @@
 
 ## 其他
 - [ ] 重构成 page 路由
+- [ ] npx skills add langfuse/skills --skill "langfuse"
+- [ ] npx skills add langchain-ai/langchain-skills --skill '*' --yes

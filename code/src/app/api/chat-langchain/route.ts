@@ -2,6 +2,9 @@
 // 与 api/chat/route.ts 功能等价，使用 LangChain.js 替代 Vercel AI SDK 的后端逻辑
 // 前端 useChat hook 完全不变，通过 @ai-sdk/langchain 适配层桥接
 
+// 必须在其他导入之前初始化 OpenTelemetry（用于 Langfuse 追踪）
+import '@/instrumentation';
+
 import { toBaseMessages, toUIMessageStream } from '@ai-sdk/langchain';
 import { createUIMessageStreamResponse } from 'ai';
 import { createAgent, dynamicSystemPromptMiddleware } from 'langchain';
@@ -9,6 +12,7 @@ import { getModel } from '@/lib/llm';
 import { lcTools } from '@/lib/tools-langchain';
 import { getLcVectorStore, readLcStore } from '@/lib/vectorStore-langchain';
 import { getMcpToolsAsLangChain, convertMcpToolToLangChain, type TransportType } from '@/lib/mcp-client';
+import { createLangfuseCallbacks } from '@/lib/langfuse';
 
 // 缓存 MCP 工具（避免每个请求都重新连接）
 let cachedLcMcpTools: ReturnType<typeof convertMcpToolToLangChain>[] | null = null;
@@ -96,10 +100,20 @@ ${contextText}
   // 将 AI SDK 的 UIMessage[] 转换为 LangChain 的 BaseMessage[]
   const langchainMessages = await toBaseMessages(messages);
 
-  // 使用 Agent 的 stream 方法
+  // 创建 Langfuse 追踪配置
+  const langfuseConfig = createLangfuseCallbacks({
+    sessionId: body.sessionId,
+    userId: body.userId,
+    traceMetadata: { modelId, hasRagContext: !!ragContext },
+  });
+
+  // 使用 Agent 的 stream 方法，传入 Langfuse 追踪
   const stream = await agent.stream(
     { messages: langchainMessages },
-    { streamMode: ['values', 'messages'] },
+    {
+      streamMode: ['values', 'messages'],
+      ...langfuseConfig,
+    },
   );
 
   // 通过适配层转换为 AI SDK 的 UIMessageStream
