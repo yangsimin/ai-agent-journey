@@ -1,0 +1,12 @@
+# IDE Agent directories
+.agents/
+.claude/
+.codebuddy/
+.continue/
+.gemini/
+.trae/
+skills/
+.skills-lock.json
+
+# OS generated files
+.DS_Store
