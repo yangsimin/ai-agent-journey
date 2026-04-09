@@ -241,5 +241,5 @@
 
 ## 其他
 - [ ] 重构成 page 路由
-- [ ] npx skills add langfuse/skills --skill "langfuse"
-- [ ] npx skills add langchain-ai/langchain-skills --skill '*' --yes
+- [x] npx skills add langfuse/skills --skill "langfuse"
+- [x] npx skills add langchain-ai/langchain-skills --skill '*' --yes
