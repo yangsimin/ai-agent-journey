@@ -1,13 +1,15 @@
-// OpenTelemetry 初始化
+// OpenTelemetry 初始化（Langfuse 集成）
 // 必须在其他模块之前导入，确保追踪生效
+// 同时服务于 Vercel AI SDK 和 LangChain 后端
 
-import { NodeSDK } from '@opentelemetry/sdk-node';
 import { LangfuseSpanProcessor } from '@langfuse/otel';
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 
-const sdk = new NodeSDK({
-  spanProcessors: [new LangfuseSpanProcessor()],
+// 导出 langfuseSpanProcessor，供 API 路由在流式响应后 forceFlush
+export const langfuseSpanProcessor = new LangfuseSpanProcessor();
+
+const tracerProvider = new NodeTracerProvider({
+  spanProcessors: [langfuseSpanProcessor],
 });
 
-sdk.start();
-
-export { sdk };
+tracerProvider.register();

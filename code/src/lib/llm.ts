@@ -11,7 +11,7 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
  * - 否则 → Google Gemini
  */
 export function getModel(modelId?: string): BaseChatModel {
-  const modelName = process.env.DEFAULT_MODEL || modelId || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.5-flash';
+  const modelName = modelId || process.env.DEFAULT_MODEL || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.5-flash';
   const isAnthropic = process.env.DEFAULT_PROVIDER === 'anthropic' || modelName.includes('claude');
 
   if (isAnthropic) {

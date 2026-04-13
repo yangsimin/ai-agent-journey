@@ -1,10 +1,15 @@
+// 必须在其他导入之前初始化 OpenTelemetry（用于 Langfuse 追踪）
+import '@/instrumentation';
+
 import { google } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages, stepCountIs, smoothStream } from 'ai';
+import { after } from 'next/server';
 import { searchStore, readStore } from '@/lib/vectorStore';
 import { embedText } from '@/lib/embeddings';
 import { myTools } from '@/lib/tools';
 import { getMcpToolsAsAiSdk, convertMcpToolToAiSdk, type TransportType } from '@/lib/mcp-client';
+import { langfuseSpanProcessor } from '@/instrumentation';
 
 export const maxDuration = 30;
 
@@ -23,8 +28,8 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { messages, modelId, systemPrompt } = body;
 
-  // 环境变量 DEFAULT_MODEL 优先级最高，其次前端 modelId，最后 fallback
-  const modelName = process.env.DEFAULT_MODEL || modelId || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.0-flash';
+  // 前端 modelId 优先，其次环境变量 DEFAULT_MODEL，最后 fallback
+  const modelName = modelId || process.env.DEFAULT_MODEL || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.0-flash';
   
   // 动态选择 Provider，判断逻辑：
   // 1. 根据环境变量里的 DEFAULT_PROVIDER 配置
@@ -71,9 +76,12 @@ export async function POST(req: Request) {
       // 2. 去内存库中查询最相关的 Top-10 片段（适当放宽召回数量，防止特定章节号等关键词在语义向量中相似度偏低而被漏掉）
       const results = searchStore(embedding, 10);
 
-      // 3. 拦截有效片段（不过滤，确保能命中相关章节标题等内容）
-      if (results.length > 0) {
-        const contextText = results.map((r, i) => `[内部文档片段 ${i + 1} | 相关度 ${(r.similarity * 100).toFixed(1)}%]:\n${r.text}`).join('\n\n');
+      // 3. 过滤低相似度片段（低于阈值的片段与问题无关，拼入反而干扰模型）
+      const SIMILARITY_THRESHOLD = 0.5;
+      const filteredResults = results.filter(r => r.similarity >= SIMILARITY_THRESHOLD);
+
+      if (filteredResults.length > 0) {
+        const contextText = filteredResults.map((r, i) => `[内部文档片段 ${i + 1} | 相关度 ${(r.similarity * 100).toFixed(1)}%]:\n${r.text}`).join('\n\n');
         
         enhancedSystemPrompt = `${enhancedSystemPrompt}\n\n====================\n【检索到的相关背景资料】\n请务必优先基于以下我为你检索到的内部知识库资料来直接回答用户的问题。如果是询问外部常规问题不受此限制：\n\n${contextText}\n====================`;
       }
@@ -108,6 +116,19 @@ export async function POST(req: Request) {
       chunking: chineseSegmenter,
       delayInMs: null, // 禁用延迟，让数据自然流动
     }),
+    experimental_telemetry: {
+      isEnabled: true,
+      functionId: 'chat',
+      metadata: {
+        sessionId: body.sessionId,
+        userId: body.userId,
+      },
+    },
+  });
+
+  // 确保流式响应结束后将追踪数据刷出到 Langfuse
+  after(async () => {
+    await langfuseSpanProcessor.forceFlush();
   });
 
   return result.toUIMessageStreamResponse();

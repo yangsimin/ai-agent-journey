@@ -45,12 +45,17 @@ export async function POST(req: Request) {
   if (query && knowledgeBase.length > 0) {
     try {
       const vectorStore = await getLcVectorStore();
-      const retriever = vectorStore.asRetriever({ k: 10 });
-      const docs = await retriever.invoke(query);
 
-      if (docs.length > 0) {
-        const contextText = docs
-          .map((doc, i) => `[内部文档片段 ${i + 1}]:\n${doc.pageContent}`)
+      // 使用 similaritySearchWithScore 获取相似度分数，以便过滤低相关度片段
+      const docsWithScores = await vectorStore.similaritySearchWithScore(query, 10);
+
+      // 过滤低相似度片段（与 AI SDK 路由保持一致）
+      const SIMILARITY_THRESHOLD = 0.5;
+      const filteredDocs = docsWithScores.filter(([doc, score]) => score >= SIMILARITY_THRESHOLD);
+
+      if (filteredDocs.length > 0) {
+        const contextText = filteredDocs
+          .map(([doc, score], i) => `[内部文档片段 ${i + 1} | 相关度 ${(score * 100).toFixed(1)}%]:\n${doc.pageContent}`)
           .join('\n\n');
 
         ragContext = `
