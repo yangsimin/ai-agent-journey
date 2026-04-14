@@ -161,7 +161,7 @@
   - [x] 预研并阅读 **LangGraph.js** 官方教程的基础 State Graph 概念，理解图结构（State、Node、Edge）（参考 [LangGraph.js Quickstart](https://docs.langchain.com/oss/javascript/langgraph/quickstart)）
   - [x] 了解 LangChain **Callbacks / Tracing** 机制，理解如何在链式调用中插入日志、计时和自定义钩子（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
   - [x] 了解 Agent 可观测性工具（如 [LangSmith](https://docs.langchain.com/langsmith/home) 或 [Langfuse](https://langfuse.com/docs)），学会追踪和调试多步工作流
-  - [ ] 初步思考 Agent 输出质量评估方法（RAG 召回率、工具调用准确率、最终输出可用性）（参考 [LangSmith 评估文档](https://docs.langchain.com/langsmith/evaluation-quickstart)）
+  - [x] 初步思考 Agent 输出质量评估方法（RAG 召回率、工具调用准确率、最终输出可用性）（参考 [LangSmith 评估文档](https://docs.langchain.com/langsmith/evaluation-quickstart)）
 - [ ] **代码实战：AI 文字 RPG 游戏引擎**
   > 用 LangGraph 的状态机驱动一款可玩的文字冒险游戏。玩家用自然语言行动，Agent 负责演绎世界、推进剧情、判断生死。天然契合 LangGraph 的所有核心概念：有状态、有循环、有条件分支、有人机交互节点。
   - [ ] 定义游戏状态结构 (`GameState`)：场景描述、玩家 HP / 物品栏、已发生事件列表、胜负标志
@@ -238,8 +238,50 @@
   - [ ] 撰写项目总结文档，回顾各阶段技术要点
   - [ ] 更新 `docs/qa.md` 完成全阶段知识沉淀
 
+---
+
+## 实践项目：Travel Agent 旅游行程规划
+
+**目标：** 根据用户输入的出发地、目的地、出发日期、返回日期、预算等条件，输出一份完整的详尽旅游行程。
+
+- [ ] **项目规划**
+  - [ ] 定义输入/输出数据结构（出发地、目的地、日期、预算 → 行程单）
+  - [ ] 设计 Agent 架构与数据流
+- [ ] **Agent 架构**
+
+  | Agent | 职责 | 依赖工具 |
+  |-------|------|---------|
+  | Coordinator Agent | 接收用户输入，拆解子任务，汇总最终行程 | - |
+  | Transport Agent | 查询航班/火车/大巴等交通方案 | 航班API、火车API |
+  | Hotel Agent | 查询住宿选项，匹配预算和位置 | 酒店API |
+  | Attraction Agent | 推荐景点、餐厅、当地活动 | POI API |
+  | Budget Agent | 全局预算校验，超支时调整方案 | 计算工具 |
+
+- [ ] **数据流实现**
+
+  ```
+  用户输入 → Coordinator 解析意图 → 并行调度子 Agent
+    → Transport Agent (交通方案)
+    → Hotel Agent (住宿方案)
+    → Attraction Agent (景点/餐饮)
+  → Budget Agent 校验预算
+  → 超支? → 回退调整 / 通过 → 汇总行程
+  → Human-in-the-loop 确认 → 最终输出
+  ```
+
+- [ ] **关键设计点**
+  - [ ] LangGraph 状态图：用 StateGraph 编排多 Agent 协作，支持条件路由（预算超支时回退调整）
+  - [ ] Tool Calling：每个 Agent 通过工具调用外部 API（航班、酒店、POI）
+  - [ ] Human-in-the-loop：行程草稿生成后让用户确认/修改，再最终输出
+  - [ ] 流式输出：逐步展示规划过程，提升体验
+- [ ] **技术栈**
+  - LangChain / LangGraph
+  - @langchain/core (已安装)
+  - Next.js (前端)
+
 
 ## 其他
-- [ ] 重构成 page 路由
+- [ ] 配置代码风格，统一格式化
 - [x] npx skills add langfuse/skills --skill "langfuse"
 - [x] npx skills add langchain-ai/langchain-skills --skill '*' --yes
+- [ ] 添加一个配置页面，可以选择对话模型和向量模型

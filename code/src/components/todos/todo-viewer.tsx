@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { TodoDocument, Phase, TaskGroup, TodoItem } from "@/lib/todo-parser";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { SiteHeader } from "@/components/site-header";
 import { TodoCheckbox } from "./todo-checkbox";
 
 interface TodoViewerProps {
@@ -16,19 +16,11 @@ export function TodoViewer({ data }: TodoViewerProps) {
   const [editing, setEditing] = useState(false);
 
   return (
-    <div className="min-h-full bg-background">
+    <>
       {/* 导航栏 */}
-      <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ← 返回聊天
-          </Link>
-          <h1 className="text-sm font-medium truncate max-w-[200px] sm:max-w-none">
-            {data.title}
-          </h1>
+      <SiteHeader
+        title={data.title}
+        actions={
           <Button
             variant={editing ? "default" : "outline"}
             size="sm"
@@ -36,20 +28,22 @@ export function TodoViewer({ data }: TodoViewerProps) {
           >
             {editing ? "完成编辑" : "编辑"}
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       {/* 内容区 */}
-      <main className="mx-auto max-w-3xl px-4 py-8 space-y-8">
-        {/* 前言部分 */}
-        <IntroSection lines={data.introLines} />
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-4 py-8 space-y-8">
+          {/* 前言部分 */}
+          <IntroSection lines={data.introLines} />
 
-        {/* 阶段列表 */}
-        {data.phases.map((phase, i) => (
-          <PhaseSection key={i} phase={phase} editing={editing} />
-        ))}
+          {/* 阶段列表 */}
+          {data.phases.map((phase, i) => (
+            <PhaseSection key={i} phase={phase} editing={editing} />
+          ))}
+        </div>
       </main>
-    </div>
+    </>
   );
 }
 

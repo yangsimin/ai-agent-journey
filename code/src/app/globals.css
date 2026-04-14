@@ -146,3 +146,9 @@
     scroll-behavior: auto !important;
   }
 }
+
+@layer base {
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

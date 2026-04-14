@@ -3,6 +3,8 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SidebarProvider } from "@/components/sidebar-context";
+import { Sidebar } from "@/components/sidebar";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -21,8 +23,13 @@ export default function RootLayout({
       lang="zh-CN"
       className={cn("h-full antialiased font-sans", "font-sans", geist.variable)}
     >
-      <body className="min-h-full flex flex-col">
-        <TooltipProvider>{children}</TooltipProvider>
+      <body className="h-dvh flex">
+        <SidebarProvider>
+          <Sidebar />
+          <div className="flex flex-col flex-1 min-w-0">
+            <TooltipProvider>{children}</TooltipProvider>
+          </div>
+        </SidebarProvider>
       </body>
     </html>
   );
