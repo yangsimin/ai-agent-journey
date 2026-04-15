@@ -11,6 +11,7 @@ export function createInitialState(): RpgUpdateType {
     gameOver: false,
     victory: false,
     currentAction: null,
+    lastPlayerInput: '',
     npcMemory: [],
   };
 }

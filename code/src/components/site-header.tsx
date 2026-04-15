@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 
 type SiteHeaderProps = {
   title: string;
@@ -16,9 +17,12 @@ export function SiteHeader({ title, actions, className }: SiteHeaderProps) {
         className,
       )}
     >
-      <h1 className="text-sm font-medium truncate max-w-[200px] sm:max-w-none">
-        {title}
-      </h1>
+      <div className="flex items-center gap-1">
+        <SidebarTrigger className="md:hidden -ml-1" />
+        <h1 className="text-sm font-medium truncate max-w-[200px] sm:max-w-none">
+          {title}
+        </h1>
+      </div>
       {actions && <div className="flex items-center gap-1">{actions}</div>}
     </header>
   );

@@ -14,6 +14,9 @@ import {
   victoryNode,
 } from './nodes';
 
+/** LLM 节点的重试策略：网络抖动/速率限制等暂时性错误自动重试 */
+const llmRetryPolicy = { maxAttempts: 3, initialInterval: 1000 };
+
 /** 条件路由：从 consequence_evaluator 出发 */
 function routeAfterConsequence(state: typeof RpgState.State): string {
   if (state.playerHp <= 0 || state.gameOver) return 'end_death';
@@ -32,13 +35,13 @@ function routeAfterNpc(state: typeof RpgState.State): string {
 // 构建图
 const graphBuilder = new StateGraph(RpgState)
   // 添加节点（名称不能与状态字段名冲突）
-  .addNode('scene_narrator', sceneNarrator)
+  .addNode('scene_narrator', sceneNarrator, { retryPolicy: llmRetryPolicy })
   .addNode('wait_for_player', waitForPlayer)
-  .addNode('action_parser', actionParser)
-  .addNode('consequence_evaluator', consequenceEvaluator)
-  .addNode('npc_responder', npcResponder)
-  .addNode('end_death', gameOverNode)
-  .addNode('end_victory', victoryNode)
+  .addNode('action_parser', actionParser, { retryPolicy: llmRetryPolicy })
+  .addNode('consequence_evaluator', consequenceEvaluator, { retryPolicy: llmRetryPolicy })
+  .addNode('npc_responder', npcResponder, { retryPolicy: llmRetryPolicy })
+  .addNode('end_death', gameOverNode, { retryPolicy: llmRetryPolicy })
+  .addNode('end_victory', victoryNode, { retryPolicy: llmRetryPolicy })
 
   // 固定边
   .addEdge(START, 'scene_narrator')
@@ -46,20 +49,15 @@ const graphBuilder = new StateGraph(RpgState)
   .addEdge('wait_for_player', 'action_parser')
   .addEdge('action_parser', 'consequence_evaluator')
 
-  // 条件边：consequence_evaluator 之后
-  .addConditionalEdges('consequence_evaluator', routeAfterConsequence, {
-    end_death: 'end_death',
-    end_victory: 'end_victory',
-    npc_responder: 'npc_responder',
-    scene_narrator: 'scene_narrator',
-  })
+  // 条件边：consequence_evaluator 之后（第三个参数声明所有可能的目标节点）
+  .addConditionalEdges('consequence_evaluator', routeAfterConsequence, [
+    'end_death', 'end_victory', 'npc_responder', 'scene_narrator',
+  ])
 
   // 条件边：npc_responder 之后
-  .addConditionalEdges('npc_responder', routeAfterNpc, {
-    end_death: 'end_death',
-    end_victory: 'end_victory',
-    wait_for_player: 'wait_for_player',
-  })
+  .addConditionalEdges('npc_responder', routeAfterNpc, [
+    'end_death', 'end_victory', 'wait_for_player',
+  ])
 
   // 终局节点 → END
   .addEdge('end_death', END)

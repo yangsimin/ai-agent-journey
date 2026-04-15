@@ -4,7 +4,14 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { TodoDocument, Phase, TaskGroup, TodoItem } from "@/lib/todo-parser";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardAction,
+  CardContent,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { SiteHeader } from "@/components/site-header";
 import { TodoCheckbox } from "./todo-checkbox";
 
@@ -33,7 +40,7 @@ export function TodoViewer({ data }: TodoViewerProps) {
 
       {/* 内容区 */}
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 py-8 space-y-8">
+        <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
           {/* 前言部分 */}
           <IntroSection lines={data.introLines} />
 
@@ -147,39 +154,33 @@ function PhaseSection({
   const progress = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
 
   return (
-    <section>
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-lg font-semibold">{phase.title}</h2>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {doneItems}/{totalItems} ({progress}%)
-        </span>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>{phase.title}</CardTitle>
+        <CardAction>
+          <span className="text-xs text-muted-foreground tabular-nums mr-2">
+            {doneItems}/{totalItems} ({progress}%)
+          </span>
+          <Progress value={progress} className="w-32" />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 目标描述 */}
+        {phase.goal && (
+          <p className="text-sm text-muted-foreground">
+            <strong>目标：</strong>
+            <InlineMarkdown text={phase.goal} />
+          </p>
+        )}
 
-      {/* 进度条 */}
-      <div className="h-1.5 w-full rounded-full bg-muted mb-4 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-300"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      {/* 目标描述 */}
-      {phase.goal && (
-        <p className="text-sm text-muted-foreground mb-4">
-          <strong>目标：</strong>
-          <InlineMarkdown text={phase.goal} />
-        </p>
-      )}
-
-      {/* 任务组 */}
-      <div className="space-y-4">
-        {phase.groups.map((group, i) => (
-          <TaskGroupView key={i} group={group} editing={editing} />
-        ))}
-      </div>
-
-      <Separator className="mt-8" />
-    </section>
+        {/* 任务组 */}
+        <div className="space-y-4">
+          {phase.groups.map((group, i) => (
+            <TaskGroupView key={i} group={group} editing={editing} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

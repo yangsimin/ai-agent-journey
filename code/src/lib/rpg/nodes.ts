@@ -2,6 +2,7 @@
 // 每个节点接收完整 state，返回 partial update
 
 import { interrupt } from '@langchain/langgraph';
+import { z } from 'zod';
 import { getModel } from '@/lib/llm';
 import {
   SCENE_NARRATOR_PROMPT,
@@ -24,39 +25,38 @@ const NPC_DATABASE: Record<string, { personality: string }> = {
   '森林精灵': { personality: '优雅而警惕，对人类保持距离但并不敌对。熟知森林中的一切，是迷路时的好帮手。' },
 };
 
-/** 从 LLM 响应中提取 JSON — 使用括号平衡匹配，避免贪婪匹配跨多段 JSON */
-function extractJson(content: string): Record<string, unknown> | null {
-  // 找到第一个 '{' 的位置
-  const start = content.indexOf('{');
-  if (start === -1) return null;
+// ============ 结构化输出 Schema ============
 
-  let depth = 0;
-  for (let i = start; i < content.length; i++) {
-    if (content[i] === '{') depth++;
-    else if (content[i] === '}') depth--;
-    if (depth === 0) {
-      try {
-        return JSON.parse(content.slice(start, i + 1));
-      } catch {
-        return null;
-      }
-    }
-  }
-  return null;
-}
+const SceneNarratorOutput = z.object({
+  narration: z.string().describe('场景描述，200字以内'),
+  suggestedActions: z.array(z.string()).describe('2-3个行动选项'),
+});
 
-/** 替换模板占位符 */
-function fillTemplate(template: string, vars: Record<string, string>): string {
-  return Object.entries(vars).reduce((acc, [key, val]) => acc.replaceAll(`{${key}}`, val), template);
-}
+const ActionParserOutput = z.object({
+  type: z.enum(['combat', 'explore', 'dialogue', 'use_item', 'other']),
+  description: z.string().describe('行动的简短描述'),
+  target: z.string().optional().describe('行动目标'),
+});
+
+const ConsequenceEvaluatorOutput = z.object({
+  sceneUpdate: z.string().describe('新的场景描述，无变化返回空字符串'),
+  hpChange: z.number().describe('HP变化，正为治疗负为伤害'),
+  itemsGained: z.array(z.string()).describe('获得的物品'),
+  itemsLost: z.array(z.string()).describe('失去的物品'),
+  eventsToAdd: z.array(z.string()).describe('新增事件'),
+  narration: z.string().describe('行动结果叙述，100字内'),
+  isVictory: z.boolean().describe('是否胜利'),
+  triggerNpc: z.string().nullable().describe('触发的NPC名称，无则null'),
+});
 
 // ============ 节点函数 ============
 
 /** 场景叙述节点：根据当前状态生成沉浸式场景描述 + 建议行动 */
 export async function sceneNarrator(state: RpgStateType, config?: NodeConfig): Promise<RpgUpdateType> {
   const model = getModel(config?.configurable?.modelId);
+  const structuredModel = model.withStructuredOutput(SceneNarratorOutput);
 
-  const prompt = fillTemplate(SCENE_NARRATOR_PROMPT, {
+  const messages = await SCENE_NARRATOR_PROMPT.formatMessages({
     scene: state.scene,
     playerHp: String(state.playerHp),
     playerMaxHp: String(state.playerMaxHp),
@@ -64,23 +64,12 @@ export async function sceneNarrator(state: RpgStateType, config?: NodeConfig): P
     eventLog: state.eventLog.slice(-5).join('；') || '无',
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: '请描述当前场景并提供行动建议。' },
-  ]);
-
-  const content = String(response.content);
-  const parsed = extractJson(content);
-
-  const narration = parsed?.narration ? String(parsed.narration) : content;
-  const suggestedActions = Array.isArray(parsed?.suggestedActions)
-    ? (parsed.suggestedActions as string[]).slice(0, 3)
-    : [];
+  const result = await structuredModel.invoke(messages);
 
   return {
-    scene: narration,
-    messages: [{ role: 'assistant', content: narration }],
-    suggestedActions,
+    scene: result.narration,
+    messages: [{ role: 'assistant', content: result.narration }],
+    suggestedActions: result.suggestedActions.slice(0, 3),
   };
 }
 
@@ -100,7 +89,7 @@ export async function waitForPlayer(state: RpgStateType): Promise<RpgUpdateType>
 
   return {
     messages: [{ role: 'user', content: playerInput }],
-    // 清空建议选项，避免残留到下一轮
+    lastPlayerInput: playerInput,
     suggestedActions: [],
   };
 }
@@ -108,33 +97,22 @@ export async function waitForPlayer(state: RpgStateType): Promise<RpgUpdateType>
 /** 行动解析节点：解析玩家输入为结构化行动 */
 export async function actionParser(state: RpgStateType, config?: NodeConfig): Promise<RpgUpdateType> {
   const model = getModel(config?.configurable?.modelId);
+  const structuredModel = model.withStructuredOutput(ActionParserOutput);
 
-  // 从消息历史中获取最后一条用户输入
-  const lastUserMsg = [...state.messages].reverse().find(m => m._getType() === 'human');
-  const playerInput = String(lastUserMsg?.content ?? '');
+  const playerInput = state.lastPlayerInput || '';
 
-  const prompt = fillTemplate(ACTION_PARSER_PROMPT, {
+  const messages = await ACTION_PARSER_PROMPT.formatMessages({
     playerInput,
     scene: state.scene,
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: playerInput },
-  ]);
-
-  const parsed = extractJson(String(response.content));
-
-  const validTypes = ['combat', 'explore', 'dialogue', 'use_item', 'other'] as const;
-  const actionType = parsed && validTypes.includes(parsed.type as typeof validTypes[number])
-    ? (parsed.type as typeof validTypes[number])
-    : 'other';
+  const result = await structuredModel.invoke(messages);
 
   return {
     currentAction: {
-      type: actionType,
-      description: (parsed?.description as string) || playerInput,
-      target: (parsed?.target as string) || undefined,
+      type: result.type,
+      description: result.description,
+      target: result.target,
     },
   };
 }
@@ -142,12 +120,14 @@ export async function actionParser(state: RpgStateType, config?: NodeConfig): Pr
 /** 后果判定节点：判断行动结果，更新状态 */
 export async function consequenceEvaluator(state: RpgStateType, config?: NodeConfig): Promise<RpgUpdateType> {
   const model = getModel(config?.configurable?.modelId);
+  const structuredModel = model.withStructuredOutput(ConsequenceEvaluatorOutput);
+
   const action = state.currentAction;
   if (!action) {
     return { messages: [{ role: 'assistant', content: '行动解析失败，请重新描述你的行动。' }] };
   }
 
-  const prompt = fillTemplate(CONSEQUENCE_EVALUATOR_PROMPT, {
+  const messages = await CONSEQUENCE_EVALUATOR_PROMPT.formatMessages({
     scene: state.scene,
     playerHp: String(state.playerHp),
     playerMaxHp: String(state.playerMaxHp),
@@ -155,44 +135,31 @@ export async function consequenceEvaluator(state: RpgStateType, config?: NodeCon
     action: `${action.type}: ${action.description}` + (action.target ? ` -> ${action.target}` : ''),
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: '请判定行动结果。' },
-  ]);
+  const result = await structuredModel.invoke(messages);
 
-  const result = extractJson(String(response.content)) || {};
-
-  // 计算新状态
-  const hpChange = Number(result.hpChange) || 0;
-  const newHp = Math.max(0, Math.min(state.playerMaxHp, state.playerHp + hpChange));
-  const itemsGained = Array.isArray(result.itemsGained) ? result.itemsGained as string[] : [];
-  const itemsLost = Array.isArray(result.itemsLost) ? result.itemsLost as string[] : [];
-  const eventsToAdd = Array.isArray(result.eventsToAdd) ? result.eventsToAdd as string[] : [];
-  const sceneUpdate = String(result.sceneUpdate || '');
-  const isVictory = Boolean(result.isVictory);
-  const triggerNpc = result.triggerNpc ? String(result.triggerNpc) : undefined;
+  const newHp = Math.max(0, Math.min(state.playerMaxHp, state.playerHp + result.hpChange));
 
   const newInventory = [
-    ...state.inventory.filter(item => !itemsLost.includes(item)),
-    ...itemsGained,
+    ...state.inventory.filter(item => !result.itemsLost.includes(item)),
+    ...result.itemsGained,
   ];
 
   // 查找 NPC 性格
-  const npcPersonality = triggerNpc && NPC_DATABASE[triggerNpc]
-    ? NPC_DATABASE[triggerNpc].personality
+  const npcPersonality = result.triggerNpc && NPC_DATABASE[result.triggerNpc]
+    ? NPC_DATABASE[result.triggerNpc].personality
     : undefined;
 
   return {
     playerHp: newHp,
     inventory: newInventory,
-    eventLog: eventsToAdd,
-    scene: sceneUpdate || state.scene,
+    eventLog: result.eventsToAdd,
+    scene: result.sceneUpdate || state.scene,
     gameOver: newHp <= 0,
-    victory: isVictory,
+    victory: result.isVictory,
     currentAction: null,
-    npcName: triggerNpc,
+    npcName: result.triggerNpc ?? undefined,
     npcPersonality,
-    messages: [{ role: 'assistant', content: String(result.narration || '行动已完成。') }],
+    messages: [{ role: 'assistant', content: result.narration || '行动已完成。' }],
   };
 }
 
@@ -202,11 +169,9 @@ export async function npcResponder(state: RpgStateType, config?: NodeConfig): Pr
   const npcName = state.npcName || '神秘旅者';
   const npcPersonality = state.npcPersonality || '友善且乐于助人';
 
-  // 从消息中获取最后的用户输入
-  const lastUserMsg = [...state.messages].reverse().find(m => m._getType() === 'human');
-  const playerInput = String(lastUserMsg?.content ?? '');
+  const playerInput = state.lastPlayerInput || '';
 
-  const prompt = fillTemplate(NPC_RESPONDER_PROMPT, {
+  const messages = await NPC_RESPONDER_PROMPT.formatMessages({
     npcName,
     npcPersonality,
     npcMemory: state.npcMemory.slice(-5).join('；') || '无',
@@ -214,11 +179,7 @@ export async function npcResponder(state: RpgStateType, config?: NodeConfig): Pr
     scene: state.scene,
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: playerInput },
-  ]);
-
+  const response = await model.invoke(messages);
   const npcReply = String(response.content);
 
   return {
@@ -233,15 +194,12 @@ export async function npcResponder(state: RpgStateType, config?: NodeConfig): Pr
 export async function gameOverNode(state: RpgStateType, config?: NodeConfig): Promise<RpgUpdateType> {
   const model = getModel(config?.configurable?.modelId);
 
-  const prompt = fillTemplate(GAME_OVER_PROMPT, {
+  const messages = await GAME_OVER_PROMPT.formatMessages({
     eventLog: state.eventLog.join('；'),
     scene: state.scene,
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: '请生成死亡结局。' },
-  ]);
+  const response = await model.invoke(messages);
 
   return {
     gameOver: true,
@@ -253,16 +211,13 @@ export async function gameOverNode(state: RpgStateType, config?: NodeConfig): Pr
 export async function victoryNode(state: RpgStateType, config?: NodeConfig): Promise<RpgUpdateType> {
   const model = getModel(config?.configurable?.modelId);
 
-  const prompt = fillTemplate(VICTORY_PROMPT, {
+  const messages = await VICTORY_PROMPT.formatMessages({
     eventLog: state.eventLog.join('；'),
     scene: state.scene,
     inventory: state.inventory.join('、') || '空',
   });
 
-  const response = await model.invoke([
-    { role: 'system', content: prompt },
-    { role: 'user', content: '请生成胜利结局。' },
-  ]);
+  const response = await model.invoke(messages);
 
   return {
     victory: true,

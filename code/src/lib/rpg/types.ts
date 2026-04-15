@@ -25,7 +25,11 @@ export const RpgState = new StateSchema({
   // 玩家状态
   playerHp: z.number().default(100),
   playerMaxHp: z.number().default(100),
+  // inventory 使用覆盖语义（非 reducer），节点必须返回完整的新数组
   inventory: z.array(z.string()).default(() => []),
+
+  // 最近一次玩家输入（waitForPlayer 设置，actionParser/npcResponder 直接读取，避免反查 messages）
+  lastPlayerInput: z.string().default(''),
 
   // 事件日志（追加式）
   eventLog: new ReducedValue(

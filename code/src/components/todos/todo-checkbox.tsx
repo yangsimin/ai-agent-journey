@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TodoCheckboxProps {
   checked: boolean;
@@ -18,7 +19,7 @@ export function TodoCheckbox({
   const [loading, setLoading] = useState(false);
   const [localChecked, setLocalChecked] = useState(checked);
 
-  const handleClick = async () => {
+  const handleCheckedChange = async () => {
     if (!editable || loading) return;
 
     // 乐观更新
@@ -45,27 +46,21 @@ export function TodoCheckbox({
     }
   };
 
+  if (loading) {
+    return (
+      <div className="mt-0.5 size-4 shrink-0 flex items-center justify-center opacity-70">
+        <Loader2 className="size-3 animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={!editable || loading}
-      className={cn(
-        "mt-0.5 size-4 shrink-0 rounded border flex items-center justify-center transition-colors",
-        (localChecked || checked)
-          ? "bg-primary border-primary text-primary-foreground"
-          : "border-muted-foreground/40 hover:border-muted-foreground",
-        editable && !loading && "cursor-pointer",
-        !editable && "cursor-default",
-        loading && "opacity-70"
-      )}
+    <Checkbox
+      checked={localChecked}
+      onCheckedChange={handleCheckedChange}
+      disabled={!editable}
+      className={cn(!editable && "cursor-default")}
       aria-label={localChecked ? "标记为未完成" : "标记为完成"}
-    >
-      {loading ? (
-        <Loader2 className="size-2.5 animate-spin" />
-      ) : localChecked || checked ? (
-        <Check className="size-2.5" />
-      ) : null}
-    </button>
+    />
   );
 }
