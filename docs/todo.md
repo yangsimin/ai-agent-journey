@@ -162,22 +162,22 @@
   - [x] 了解 LangChain **Callbacks / Tracing** 机制，理解如何在链式调用中插入日志、计时和自定义钩子（参考 [LangChain.js Concepts](https://docs.langchain.com/oss/javascript/concepts)）
   - [x] 了解 Agent 可观测性工具（如 [LangSmith](https://docs.langchain.com/langsmith/home) 或 [Langfuse](https://langfuse.com/docs)），学会追踪和调试多步工作流
   - [x] 初步思考 Agent 输出质量评估方法（RAG 召回率、工具调用准确率、最终输出可用性）（参考 [LangSmith 评估文档](https://docs.langchain.com/langsmith/evaluation-quickstart)）
-- [ ] **代码实战：AI 文字 RPG 游戏引擎**
+- [x] **代码实战：AI 文字 RPG 游戏引擎**
   > 用 LangGraph 的状态机驱动一款可玩的文字冒险游戏。玩家用自然语言行动，Agent 负责演绎世界、推进剧情、判断生死。天然契合 LangGraph 的所有核心概念：有状态、有循环、有条件分支、有人机交互节点。
-  - [ ] 定义游戏状态结构 (`GameState`)：场景描述、玩家 HP / 物品栏、已发生事件列表、胜负标志
-  - [ ] 编写功能节点 (Nodes)
+  - [x] 定义游戏状态结构 (`GameState`)：场景描述、玩家 HP / 物品栏、已发生事件列表、胜负标志
+  - [x] 编写功能节点 (Nodes)
     - `scene_narrator`：根据当前状态生成沉浸式场景描述
     - `action_parser`：解析玩家输入，识别意图（战斗 / 探索 / 对话 / 使用道具）
     - `consequence_evaluator`：判断行动结果，更新状态（伤害计算、道具获取、剧情触发）
     - `npc_responder`：NPC 对话节点，有独立"记忆"与性格 Prompt
-  - [ ] 设置条件连线 (Conditional Edges)
+  - [x] 设置条件连线 (Conditional Edges)
     - HP ≤ 0 → `game_over` 节点（生成死亡结局）
     - 触发胜利条件 → `victory` 节点（生成结局彩蛋）
     - 否则 → 循环回 `scene_narrator` 继续下一回合
-  - [ ] 接入人机交互节点 (`interrupt`)：每轮等待真实玩家输入，体验 LangGraph 的 Human-in-the-Loop 机制
-  - [ ] 前端集成：在现有聊天界面中展示 HP 血条、物品栏状态面板，让游戏状态可视化
+  - [x] 接入人机交互节点 (`interrupt`)：每轮等待真实玩家输入，体验 LangGraph 的 Human-in-the-Loop 机制
+  - [x] 前端集成：在现有聊天界面中展示 HP 血条、物品栏状态面板，让游戏状态可视化
 - [ ] **进阶实践：可观测性与调优**
-  - [ ] 接入 LangSmith 或 Langfuse，追踪 Agent 每一步的输入输出与耗时
+  - [x] 接入 LangSmith 或 Langfuse，追踪 Agent 每一步的输入输出与耗时
   - [ ] 根据追踪数据优化工作流（如调整检索 Top-K、修改 Prompt、增加/减少节点）
 
 ---
@@ -285,3 +285,5 @@
 - [x] npx skills add langfuse/skills --skill "langfuse"
 - [x] npx skills add langchain-ai/langchain-skills --skill '*' --yes
 - [ ] 添加一个配置页面，可以选择对话模型和向量模型
+- [ ] 拆分 page.tsx 组件，聚焦核心代码
+
