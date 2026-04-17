@@ -37,29 +37,82 @@
 
 ## 🚀 快速启动
 
-进入项目代码目录并安装依赖：
+### 1. 前置依赖
+
+- **Node.js** >= 18
+- **pnpm**（包管理器，不用 npm）
+- **Docker**（用于运行 PostgreSQL 数据库）
+
+### 2. 安装依赖
 
 ```bash
 cd code
-npm install
+pnpm install
 ```
 
-配置环境变量：
-复制 `.env.example` 到 `.env.local`，并填入你的配置信息：
+### 3. 启动 PostgreSQL
+
+项目使用 Docker Compose 管理 PostgreSQL：
+
+```bash
+# 在项目根目录执行
+docker compose up -d
+```
+
+这会启动一个 PostgreSQL 16 实例（端口 5432），默认用户名/密码/数据库均为 `aiagent`。
+
+### 4. 配置环境变量
+
+在 `code/` 目录下创建 `.env.local`，填入以下配置：
+
 ```env
-# Google Gemini
+# Google Gemini（必填）
 GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key_here
 GOOGLE_GENERATIVE_AI_MODEL=gemini-2.5-flash
 
-# (可选) 本地 Embedding 模型提供商，如 LM Studio
+# PostgreSQL 数据库连接（必填）
+DATABASE_URL="postgresql://aiagent:aiagent@localhost:5432/ai_agent_journey"
+
+# Anthropic Claude（可选）
+ANTHROPIC_API_KEY=your_anthropic_key
+ANTHROPIC_BASE_URL=https://your-proxy
+
+# LM Studio 本地 Embedding（可选，不配则用 Google text-embedding-004）
 LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
 LM_STUDIO_EMBEDDING_MODEL=nomic-embed-text-v1.5
+
+# Langfuse 可观测性（可选）
+LANGFUSE_PUBLIC_KEY=your_key
+LANGFUSE_SECRET_KEY=your_key
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-运行开发服务器：
+### 5. 初始化数据库
+
+首次运行需推送 Prisma Schema 到数据库创建表：
 
 ```bash
-npm run dev
+cd code
+pnpm db:push
+```
+
+### 6. 启动开发服务器
+
+```bash
+cd code
+pnpm dev
 ```
 
 浏览器打开 [http://localhost:3000](http://localhost:3000) 即可开始体验！
+
+### 常用命令速查
+
+```bash
+cd code
+pnpm dev           # 启动开发服务器
+pnpm build          # 生产构建
+pnpm lint           # ESLint 检查
+pnpm db:push        # 推送 Schema 到数据库（开发用）
+pnpm db:migrate     # 创建迁移（正式环境推荐）
+pnpm db:studio      # 打开 Prisma Studio 可视化管理
+```

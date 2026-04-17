@@ -20,10 +20,20 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ```bash
 pnpm install
+pnpm db:generate                      # 生成 Prisma 客户端
+docker compose up -d                  # 启动 PostgreSQL（首次需运行 pnpm db:push 创建表）
 pnpm dev       # 开发服务器 http://localhost:3000
 pnpm build     # 生产构建
 pnpm lint      # ESLint
 pnpm start     # 生产服务器
+```
+
+Prisma 数据库管理：
+
+```bash
+pnpm db:push     # 推送 schema 到数据库（开发用，无需迁移文件）
+pnpm db:migrate  # 创建迁移（正式环境推荐）
+pnpm db:studio   # 打开 Prisma Studio 可视化管理
 ```
 
 MCP Server（独立项目，使用 npm）：
@@ -54,6 +64,7 @@ LANGFUSE_PUBLIC_KEY=your_key                # 可选 — 可观测性
 LANGFUSE_SECRET_KEY=your_key                # 可选 — 可观测性
 LANGFUSE_BASE_URL=https://cloud.langfuse.com # 可选 — 自托管 Langfuse
 MCP_TRANSPORT=stdio                         # 可选 — "stdio" 或 "http"（默认 stdio）
+DATABASE_URL=postgresql://aiagent:aiagent@localhost:5432/ai_agent_journey  # 必填 — Prisma 数据库连接
 ```
 
 同时设置 `LM_STUDIO_BASE_URL` 和 `LM_STUDIO_EMBEDDING_MODEL` 时，Embedding 使用本地 LM Studio（`@ai-sdk/openai` 兼容客户端），否则回退到 Google `text-embedding-004`（768 维）。
@@ -64,6 +75,7 @@ MCP_TRANSPORT=stdio                         # 可选 — "stdio" 或 "http"（�
 - **AI SDK:** Vercel AI SDK 6 (`ai`, `@ai-sdk/google`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/react`, `@ai-sdk/langchain`)
 - **LangChain:** `langchain`, `@langchain/langgraph`, `@langchain/core`, `@langchain/textsplitters`
 - **验证:** Zod 4
+- **ORM:** Prisma 7 + PostgreSQL（PrismaPg 驱动适配器）
 - **样式:** Tailwind CSS v4 + shadcn/ui (base-nova 风格)
 - **MCP:** `@modelcontextprotocol/sdk`
 - **可观测性:** OpenTelemetry + Langfuse
@@ -82,12 +94,16 @@ code/src/
     layout.tsx                       # 根布局（lang="zh-CN"）
     globals.css                      # Tailwind v4 + CSS 变量
     api/
-      chat/route.ts                  # AI SDK 对话 API（流式 + RAG + MCP 工具）
+      chat/route.ts                  # AI SDK 对话 API（流式 + RAG + MCP 工具 + 对话持久化）
       chat-langchain/route.ts        # LangChain 对话 API（功能等价，对比学习用）
       ingest/route.ts                # 知识库文档摄入 API（双写两套向量存储）
       models/route.ts                # 模型列表查询 API（Google + Anthropic）
       rpg/route.ts                   # RPG 游戏 API（start/resume，SSE 流式）
-      todos/route.ts                 # 待办事项查询 API
+      conversations/route.ts        # 对话列表/创建 API（Prisma）
+      conversations/[id]/route.ts   # 单对话详情/删除 API
+      reminders/route.ts            # 提醒列表/创建 API（Prisma）
+      reminders/[id]/route.ts       # 提醒更新/删除 API
+      todos/route.ts                 # 提醒事项查询 API（兼容旧前端，读取 DB）
       todo-md/route.ts               # 学习进度 CRUD API（读取/切换 checkbox）
   components/
     ai-elements/                     # AI 对话 UI 组件
@@ -97,21 +113,26 @@ code/src/
       tool.tsx                       #   工具调用展示（可折叠卡片）
       shimmer.tsx                    #   加载闪烁动画（motion）
       code-block.tsx                 #   代码块（shiki 高亮 + 复制）
+    conversation-list.tsx            # 对话列表侧边栏组件（Prisma 数据源）
     todos/                           # 学习进度 UI 组件
       todo-viewer.tsx                #   Todo 文档查看器（阶段/进度条/任务组）
       todo-checkbox.tsx              #   Todo 复选框（乐观更新）
     ui/                              # shadcn/ui 基础组件
   lib/
+    api-utils.ts                     # 统一错误处理包装器（withApiHandler/withGetHandler）
+    api-schemas.ts                   # 共享 Zod 校验 schema（各路由请求体）
+    db.ts                            # Prisma Client 单例（PrismaPg 适配器）
+    conversations.ts                 # 对话 CRUD 操作（Prisma）
     embeddings.ts                    # AI SDK Embedding（LM Studio / Google 双提供商）
     embeddings-langchain.ts          # LangChain Embedding（EmbeddingsInterface 单例）
     vectorStore.ts                   # AI SDK 向量存储（JSON 文件 + 手写余弦相似度）
     vectorStore-langchain.ts         # LangChain 向量存储（MemoryVectorStore）
-    tools.ts                         # AI SDK 工具定义（create_todo, get_weather，Zod schema）
-    tools-langchain.ts               # LangChain 工具定义（LangChain tool() 签名）
+    tools.ts                         # AI SDK 工具定义（create/list/complete_reminder, get_weather，Zod schema）
+    tools-langchain.ts               # LangChain 工具定义（等价 Reminder 三件套）
     mcp-client.ts                    # MCP 客户端（stdio/HTTP 双传输，工具发现，JSON Schema→Zod）
     model.ts                         # 动态 Provider 选择（Google/Anthropic）
     llm.ts                           # LangChain 模型选择器（BaseChatModel）
-    langfuse.ts                      # Langfuse 集成（CallbackHandler 封装）
+    langfuse.ts                      # Langfuse 集成（CallbackHandler + session metadata）
     todo-parser.ts                   # Markdown 解析器（todo.md → 结构化数据）
     utils.ts                         # 通用工具（cn）
     rpg/                             # RPG 游戏引擎
@@ -121,6 +142,11 @@ code/src/
       prompts.ts                     #   各节点 Prompt 模板（6 个）
       initial-state.ts               #   游戏初始状态（幽暗森林, 100HP, 3 初始物品）
   instrumentation.ts                 # OpenTelemetry 初始化（LangfuseSpanProcessor）
+  generated/prisma/                  # Prisma 7 生成的客户端代码（自动生成，勿手动编辑）
+prisma/
+  schema.prisma                      # Prisma 数据模型（Conversation/Message/Reminder）
+prisma.config.ts                     # Prisma 7 配置文件（数据库连接 URL）
+docker-compose.yml                   # PostgreSQL 16 Docker 配置
 ```
 
 ```

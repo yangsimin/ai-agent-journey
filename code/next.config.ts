@@ -2,6 +2,7 @@
 const nextConfig = {
   /* 允许局域网 IP 访问开发服务器资源 */
   allowedDevOrigins: ['*'],
+  serverExternalPackages: ['@prisma/client'],
 };
 
 export default nextConfig;

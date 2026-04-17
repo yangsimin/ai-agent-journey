@@ -186,18 +186,23 @@
 
 **目标：** 将 Agent 能力从脚本层升级为可部署的全栈服务，掌握生产级 API 设计与数据持久化。
 
-- [ ] **可视化与记录**
+- [x] **可视化与记录**
   - [ ] 在 `docs/qa.md` 中记录 Next.js App Router 与 AI 集成的工程化心得
-- [ ] **知识点突破**
-  - [ ] 深入理解 Next.js Route Handler 如何实现 SSE 流式响应（`ReadableStream` + `TransformStream`）（参考 [Next.js Route Handlers 文档](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)）
+- [x] **知识点突破**
+  - [x] 深入理解 Next.js Route Handler 如何实现 SSE 流式响应（`ReadableStream` + `TransformStream`）（参考 [Next.js Route Handlers 文档](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)）
   - [ ] 了解 Server Actions 与 API Route 在 AI 场景下的适用边界（参考 [Next.js Server Actions 文档](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)）
-  - [ ] 学习使用 **Prisma ORM** 进行数据建模与持久化（替代内存状态）（参考 [Prisma 快速入门](https://www.prisma.io/docs/getting-started/quickstart)）
-  - [ ] 了解接入 **LangSmith** 或 **Langfuse** 追踪 Agent 调用链（可观测性）（参考 [LangSmith 快速入门](https://docs.smith.langchain.com/observability/tutorials/tracing_and_observability)）
-- [ ] **代码实战：工程化升级**
-  - [ ] 重构现有 API Route，添加统一错误处理与超时控制
-  - [ ] 引入 Prisma，用数据库持久化对话历史（代替内存 messages 数组）
-  - [ ] 实现基于 Agent Tool Call 的自然语言提醒功能（自然语言 → 参数提取 → DB 持久化）
-  - [ ] 接入 LangSmith 追踪完整的 Agent 调用路径与耗时
+  - [x] 学习使用 **Prisma ORM** 进行数据建模与持久化（替代内存状态）（参考 [Prisma 快速入门](https://www.prisma.io/docs/getting-started/quickstart)）
+  - [x] 了解接入 **LangSmith** 或 **Langfuse** 追踪 Agent 调用链（可观测性）（参考 [LangSmith 快速入门](https://docs.smith.langchain.com/observability/tutorials/tracing_and_observability)）— 跳过 LangSmith，深化现有 Langfuse
+- [x] **代码实战：工程化升级**
+  - [x] 重构现有 API Route，添加统一错误处理与超时控制
+  - [x] 引入 Prisma，用数据库持久化对话历史（代替内存 messages 数组）
+  - [x] 实现基于 Agent Tool Call 的自然语言提醒功能（自然语言 → 参数提取 → DB 持久化）
+  - [x] 接入 LangSmith 追踪完整的 Agent 调用路径与耗时 — 改为深化 Langfuse（metadata 丰富化、手动 span、session 追踪）
+
+- [ ] **后续优化待办**
+  - [ ] 对话传输改为增量模式（只发最新消息 + conversationId，后端从 DB 加载历史）
+  - [ ] RPG 游戏状态持久化（自定义 LangGraph checkpointer 接入 Prisma）
+  - [ ] 了解 Server Actions 与 API Route 在 AI 场景下的适用边界
 
 ---
 
