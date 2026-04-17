@@ -1,5 +1,5 @@
 // Langfuse 集成模块
-// 为 LangChain 提供可观测性追踪
+// 为 AI SDK 和 LangChain 提供可观测性追踪
 // 文档: https://langfuse.com/docs/integrations/frameworks/langchain
 
 import { CallbackHandler } from '@langfuse/langchain';
@@ -17,16 +17,6 @@ export function isLangfuseConfigured(): boolean {
 /**
  * 获取 Langfuse CallbackHandler 实例
  * 用于 LangChain 模型调用的追踪
- *
- * 注意：publicKey/secretKey/baseUrl 通过环境变量自动读取
- * 需要配置: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL
- *
- * @param options 可选配置
- * @param options.sessionId 会话 ID，用于关联同一会话的多轮对话
- * @param options.userId 用户 ID，用于标识用户
- * @param options.tags 标签数组
- * @param options.version 版本标识
- * @param options.traceMetadata 额外的元数据
  */
 export function getLangfuseHandler(options?: {
   sessionId?: string;
@@ -59,4 +49,19 @@ export function createLangfuseCallbacks(options?: {
     return {};
   }
   return { callbacks: [handler] };
+}
+
+/**
+ * 创建会话级别的 metadata
+ * 使 Langfuse session 与对话一一对应
+ */
+export function createSessionMetadata(conversationId: string, userId?: string) {
+  return {
+    sessionId: conversationId,
+    userId: userId || 'anonymous',
+    traceMetadata: {
+      conversationId,
+      environment: process.env.NODE_ENV ?? 'development',
+    },
+  };
 }

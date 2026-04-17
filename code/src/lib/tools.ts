@@ -1,99 +1,44 @@
 import { tool } from 'ai';
-import { z } from 'zod';
-import fs from 'fs';
-import path from 'path';
+import {
+  createReminderSchema,
+  listRemindersSchema,
+  completeReminderSchema,
+  getWeatherSchema,
+  coreCreateReminder,
+  coreListReminders,
+  coreCompleteReminder,
+  coreGetWeather,
+} from './tools-core';
 
-// ========== Todo 数据存储 (本地文件) ==========
-// 解决 Next.js 开发环境下 API 路由隔离导致的内存丢失问题
-export interface Todo {
-  id: string;
-  title: string;
-  dueDate?: string;
-  priority: 'high' | 'medium' | 'low';
-  done: boolean;
-  createdAt: string;
-}
+const CREATE_REMINDER_DESC = '创建一个提醒事项。当用户提到"提醒我"、"记住"、"别忘了"、"X点要"等关键词时调用此工具。对于时间相关表述（如"明天下午3点"、"下周一"），请结合当前时间计算出具体的 ISO 8601 日期时间填入 dueDate。';
 
-const TODOS_PATH = path.join(process.cwd(), '.todos.json');
+export const createReminderTool = tool({
+  description: CREATE_REMINDER_DESC,
+  inputSchema: createReminderSchema,
+  execute: coreCreateReminder,
+});
 
-export function readTodos(): Todo[] {
-  try {
-    if (fs.existsSync(TODOS_PATH)) {
-      const data = fs.readFileSync(TODOS_PATH, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.error('读取 Todos 失败:', e);
-  }
-  return [];
-}
+export const listRemindersTool = tool({
+  description: '列出提醒事项。当用户询问"有什么提醒"、"我的待办"等时调用此工具。',
+  inputSchema: listRemindersSchema,
+  execute: coreListReminders,
+});
 
-export function writeTodos(todos: Todo[]) {
-  fs.writeFileSync(TODOS_PATH, JSON.stringify(todos, null, 2), 'utf-8');
-}
-
-export function addTodo(todo: Todo) {
-  const todos = readTodos();
-  todos.push(todo);
-  writeTodos(todos);
-}
-
-// ========== Mock 天气数据 ==========
-const weatherData: Record<string, { temperature: number; condition: string; humidity: number }> = {
-  '深圳': { temperature: 25, condition: '晴', humidity: 65 },
-  '北京': { temperature: 18, condition: '多云', humidity: 40 },
-  '上海': { temperature: 22, condition: '阴', humidity: 72 },
-  '广州': { temperature: 28, condition: '雷阵雨', humidity: 85 },
-  '成都': { temperature: 20, condition: '小雨', humidity: 78 },
-  '杭州': { temperature: 23, condition: '晴', humidity: 58 },
-  '东京': { temperature: 19, condition: '晴', humidity: 55 },
-  '纽约': { temperature: 15, condition: '多云', humidity: 50 },
-};
-
-// ========== 工具定义 ==========
-export const createTodoTool = tool({
-  description: '创建一个待办事项。当用户要求创建提醒、任务、计划时调用此工具。',
-  inputSchema: z.object({
-    title: z.string().describe('任务标题，简短描述要做什么'),
-    dueDate: z.string().optional().describe('截止日期，格式为 YYYY-MM-DD'),
-    priority: z.enum(['high', 'medium', 'low']).optional().describe('任务优先级'),
-  }),
-  execute: async ({ title, dueDate, priority }) => {
-    const todo: Todo = {
-      id: Date.now().toString(),
-      title,
-      dueDate,
-      priority: priority ?? 'medium',
-      done: false,
-      createdAt: new Date().toISOString(),
-    };
-    addTodo(todo);
-    return { success: true, todo };
-  },
+export const completeReminderTool = tool({
+  description: '将一个提醒标记为已完成。当用户说"完成了X"、"取消提醒X"等时调用。',
+  inputSchema: completeReminderSchema,
+  execute: coreCompleteReminder,
 });
 
 export const getWeatherTool = tool({
   description: '获取指定城市的当前天气信息。当用户询问天气、气温、是否下雨时调用此工具。',
-  inputSchema: z.object({
-    city: z.string().describe('城市名称，例如：深圳、北京、上海'),
-  }),
-  execute: async ({ city }) => {
-    const data = weatherData[city];
-    if (data) {
-      return { city, ...data };
-    }
-    // 未知城市返回随机模拟数据
-    return {
-      city,
-      temperature: 20 + Math.floor(Math.random() * 10),
-      condition: '晴',
-      humidity: 50 + Math.floor(Math.random() * 30),
-    };
-  },
+  inputSchema: getWeatherSchema,
+  execute: coreGetWeather,
 });
 
-// ========== 导出工具集 ==========
 export const myTools = {
-  create_todo: createTodoTool,
+  create_reminder: createReminderTool,
+  list_reminders: listRemindersTool,
+  complete_reminder: completeReminderTool,
   get_weather: getWeatherTool,
 };

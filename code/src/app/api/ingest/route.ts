@@ -1,18 +1,22 @@
-import { NextResponse } from 'next/server';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '@langchain/core/documents';
 import { embedTexts } from '@/lib/embeddings';
 import { addChunks, clearStore, DocumentChunk } from '@/lib/vectorStore';
 import { addDocumentsToStore, clearLcStore } from '@/lib/vectorStore-langchain';
+import { withApiHandler } from '@/lib/api-utils';
+import { ingestRequestSchema } from '@/lib/api-schemas';
+import { trace } from '@opentelemetry/api';
 
 export const maxDuration = 60; // 文本切分和求 API 获取向量的过程可能稍长
 
-export async function POST(req: Request) {
-  try {
-    const { text, filename } = await req.json();
-    if (!text) {
-      return NextResponse.json({ error: 'No text provided' }, { status: 400 });
-    }
+export const POST = withApiHandler(
+  async (req, body) => {
+    const { text, filename } = body;
+
+    const tracer = trace.getTracer('ai-agent-journey');
+    const ingestSpan = tracer.startSpan('ingest.document');
+    ingestSpan.setAttribute('filename', filename || 'unknown');
+    ingestSpan.setAttribute('text_length', text.length);
 
     // 1. 初始化分块器
     const splitter = new RecursiveCharacterTextSplitter({
@@ -25,11 +29,19 @@ export async function POST(req: Request) {
     const chunkTexts = chunks.map(c => c.pageContent);
 
     if (chunkTexts.length === 0) {
-      return NextResponse.json({ error: 'Text too short or failed to split' }, { status: 400 });
+      ingestSpan.setAttribute('error', 'no_chunks');
+      ingestSpan.end();
+      return Response.json(
+        { error: { message: 'Text too short or failed to split', code: 'VALIDATION_ERROR' } },
+        { status: 400 },
+      );
     }
 
     // 3. 调用 Vercel AI SDK embedding 模型获取向量
+    const embedSpan = tracer.startSpan('ingest.embedding');
+    embedSpan.setAttribute('chunk_count', chunkTexts.length);
     const embeddings = await embedTexts(chunkTexts);
+    embedSpan.end();
 
     // 4. 写入 Vercel AI SDK 版向量存储
     clearStore();
@@ -48,13 +60,14 @@ export async function POST(req: Request) {
     }));
     await addDocumentsToStore(lcDocs);
 
-    return NextResponse.json({
+    ingestSpan.setAttribute('chunk_count', documentChunks.length);
+    ingestSpan.end();
+
+    return Response.json({
       success: true,
       message: `Successfully ingested ${documentChunks.length} chunks into both vector stores.`,
-      chunkCount: documentChunks.length
+      chunkCount: documentChunks.length,
     });
-  } catch (error: unknown) {
-    console.error('Ingestion error:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal Server Error' }, { status: 500 });
-  }
-}
+  },
+  { schema: ingestRequestSchema, timeout: 55000 },
+);

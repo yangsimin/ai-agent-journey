@@ -27,6 +27,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { SiteHeader } from '@/components/site-header';
+import { ConversationList } from '@/components/conversation-list';
 
 const ToolComponents = dynamic(() =>
   import('@/components/ai-elements/tool').then(m => ({
@@ -46,12 +47,14 @@ interface ToolCallPart {
   errorText?: string;
 }
 
-interface Todo {
+interface Reminder {
   id: string;
   title: string;
-  dueDate?: string;
-  priority: 'high' | 'medium' | 'low';
+  description?: string | null;
+  dueDate?: string | null;
+  priority: string;
   done: boolean;
+  doneAt?: string | null;
   createdAt: string;
 }
 
@@ -70,49 +73,68 @@ const PERSONAS = [
   { id: 'cat娘', name: '傲娇猫娘', prompt: '你是一只傲娇、毒舌但内心善良的猫娘。所有回答结尾都必须带上「喵~」。偶尔嘲笑用户的愚蠢，但始终会给出正确的答案。' }
 ];
 
-function TodoSidebar({ todos, open, onOpenChange }: {
-  todos: Todo[];
+/** 返回一个同时更新状态和 localStorage 的 onValueChange 处理函数 */
+function makePersistHandler<T extends string>(setter: (v: T) => void, key: string) {
+  return (v: string | null) => { if (v) { setter(v as T); localStorage.setItem(key, v); } };
+}
+
+function ReminderSidebar({ reminders, open, onOpenChange, onComplete, onDelete }: {
+  reminders: Reminder[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onComplete: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-64 p-0" showCloseButton={false}>
         <SheetHeader className="flex flex-row items-center justify-between p-3 border-b border-border">
-          <SheetTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">待办事项</SheetTitle>
+          <SheetTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">提醒事项</SheetTitle>
           <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => onOpenChange(false)}>
             ✕
           </Button>
         </SheetHeader>
         <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-          {todos.length === 0 ? (
+          {reminders.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-xs text-muted-foreground">
-                暂无待办事项
+                暂无提醒事项
               </p>
               <p className="text-xs text-muted-foreground/70 mt-1">
-                试试说「帮我创建一个提醒」
+                试试说「提醒我明天下午开会」
               </p>
             </div>
           ) : (
-            todos.map(todo => (
+            reminders.map(rem => (
               <div
-                key={todo.id}
+                key={rem.id}
                 className={
-                  'flex items-start gap-2 p-2 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer group'
-                  + (todo.done ? ' opacity-50' : '')
+                  'flex items-start gap-2 p-2 rounded-lg hover:bg-secondary/50 transition-colors group'
+                  + (rem.done ? ' opacity-50' : '')
                 }
               >
-                <Checkbox checked={todo.done} className="pointer-events-none mt-0.5" />
+                <Checkbox 
+                  checked={rem.done} 
+                  className="mt-0.5" 
+                  onCheckedChange={() => { if (!rem.done) onComplete(rem.id); }}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className={'text-sm leading-snug' + (todo.done ? ' line-through text-muted-foreground' : '')}>{todo.title}</p>
+                  <p className={'text-sm leading-snug' + (rem.done ? ' line-through text-muted-foreground' : '')}>{rem.title}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    {todo.dueDate && <span className="text-[11px] text-muted-foreground">{todo.dueDate}</span>}
-                    {todo.priority === 'high' && (
+                    {rem.dueDate && <span className="text-[11px] text-muted-foreground">{new Date(rem.dueDate).toLocaleDateString('zh-CN')}</span>}
+                    {rem.priority === 'high' && (
                       <Badge variant="destructive" className="text-[9px] px-1 py-0">高</Badge>
                     )}
                   </div>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+                  onClick={() => onDelete(rem.id)}
+                >
+                  ✕
+                </Button>
               </div>
             ))
           )}
@@ -275,20 +297,60 @@ const InlineToolOutput = dynamic(() =>
   import('@/components/ai-elements/tool').then(m => ({ default: m.ToolOutput }))
 );
 
+/** 将 DB 中存储的 ContentPart[] 转换为前端 UIMessage 期望的 UIMessagePart[] */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function contentPartsToUIParts(parts: any, fallbackText: string): UIMessage['parts'] {
+  if (!Array.isArray(parts) || parts.length === 0) {
+    return [{ type: 'text' as const, text: fallbackText }];
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return parts.map((part: any) => {
+    if (part.type === 'text') {
+      return { type: 'text' as const, text: part.text as string };
+    }
+    // ContentPart 'tool-call' → UIMessagePart 'tool-{toolName}'
+    if (part.type === 'tool-call') {
+      return {
+        type: `tool-${part.toolName}` as const,
+        toolCallId: part.toolCallId as string,
+        toolName: part.toolName as string,
+        state: 'input-available' as const,
+        input: part.input,
+      };
+    }
+    // ContentPart 'tool-result' → UIMessagePart 'tool-{toolName}' (state: output-available)
+    if (part.type === 'tool-result') {
+      return {
+        type: `tool-${part.toolName}` as const,
+        toolCallId: part.toolCallId as string,
+        toolName: part.toolName as string,
+        state: 'output-available' as const,
+        input: part.input,
+        output: part.output,
+      };
+    }
+    // 其他类型直接透传
+    return part;
+  });
+}
+
 /** 对话区域子组件 — 通过 key 强制重新挂载以切换后端 */
-function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErrorMap, onChatError }: {
+function ChatArea({ backend, selectedModel, selectedPersona, conversationId, fetchReminders, chatErrorMap, onChatError, onConversationIdChange, onFirstSend }: {
   backend: 'vercel' | 'langchain';
   selectedModel: string;
   selectedPersona: string;
-  fetchTodos: () => void;
+  conversationId: string | null;
+  fetchReminders: () => void;
   chatErrorMap: Record<string, string>;
   onChatError: (msg: string, msgId: string) => void;
+  onConversationIdChange: (id: string) => void;
+  onFirstSend: (text: string) => void;
 }) {
   const transport = useMemo(() => new DefaultChatTransport({
     api: backend === 'langchain' ? '/api/chat-langchain' : '/api/chat',
   }), [backend]);
 
-  const { messages, status, sendMessage } = useChat({
+  const { messages, setMessages, status, sendMessage } = useChat({
     transport,
     experimental_throttle: 50,
     onError: (error) => {
@@ -296,21 +358,54 @@ function ChatArea({ backend, selectedModel, selectedPersona, fetchTodos, chatErr
       const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
       if (lastUserMsg?.id) onChatError(msg, lastUserMsg.id);
     },
+    onFinish: ({ message }) => {
+      // 从 message metadata 中获取后端返回的 conversationId
+      const meta = message.metadata as Record<string, unknown> | undefined;
+      if (meta?.conversationId && typeof meta.conversationId === 'string') {
+        onConversationIdChange(meta.conversationId);
+      }
+    },
   });
+
+  // 切换对话时加载历史消息或清空
+  useEffect(() => {
+    if (conversationId) {
+      fetch(`/api/conversations/${conversationId}`)
+        .then(r => r.json())
+        .then(data => {
+          const conv = data.conversation;
+          if (conv?.messages) {
+            const uiMessages: UIMessage[] = conv.messages.map((m: { id: string; role: string; content: string; parts?: unknown }) => ({
+              id: m.id,
+              role: m.role as 'user' | 'assistant' | 'system',
+              parts: contentPartsToUIParts(m.parts, m.content),
+              createdAt: new Date(),
+            }));
+            setMessages(uiMessages);
+          } else {
+            setMessages([]);
+          }
+        })
+        .catch(() => setMessages([]));
+    } else {
+      setMessages([]);
+    }
+  }, [conversationId, setMessages]);
 
   const scrollFnRef = useRef<(() => void) | null>(null);
   const isLoading = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
     if (!isLoading && messages.length > 0) {
-      fetchTodos();
+      fetchReminders();
     }
-  }, [isLoading, messages.length, fetchTodos]);
+  }, [isLoading, messages.length, fetchReminders]);
 
   const handleSubmit = (message: { text: string }) => {
     if (!message.text.trim() || isLoading || !selectedModel) return;
+    if (!conversationId) onFirstSend(message.text.trim());
     const currentPrompt = PERSONAS.find(p => p.id === selectedPersona)?.prompt || PERSONAS[0].prompt;
-    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt } });
+    sendMessage({ text: message.text }, { body: { modelId: selectedModel, systemPrompt: currentPrompt, conversationId: conversationId ?? undefined } });
     // 发送后滚动到底部（通过 ref 访问 StickToBottom 的 scrollToBottom）
     setTimeout(() => scrollFnRef.current?.(), 50);
   };
@@ -358,15 +453,29 @@ export default function ChatClient() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [dbReady, setDbReady] = useState(false);
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [showTodos, setShowTodos] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [showReminders, setShowReminders] = useState(false);
   const [chatErrorMap, setChatErrorMap] = useState<Record<string, string>>({});
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [pendingConvTitle, setPendingConvTitle] = useState<string | null>(null);
 
-  const fetchTodos = useCallback(async () => {
+  // 初始化时从 URL 恢复 conversationId
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('session');
+    if (id) setConversationId(id);
+  }, []);
+
+  // conversationId 变化时同步 URL
+  useEffect(() => {
+    const url = conversationId ? `?session=${conversationId}` : window.location.pathname;
+    window.history.replaceState(null, '', url);
+  }, [conversationId]);
+
+  const fetchReminders = useCallback(async () => {
     try {
-      const res = await fetch('/api/todos');
+      const res = await fetch('/api/reminders');
       const data = await res.json();
-      setTodos(data.todos ?? []);
+      setReminders(data.reminders ?? []);
     } catch { /* ignore */ }
   }, []);
 
@@ -400,8 +509,8 @@ export default function ChatClient() {
   const currentModelObj = models.find(m => m.id === selectedModel);
 
   useEffect(() => {
-    fetchTodos();
-  }, [fetchTodos]);
+    fetchReminders();
+  }, [fetchReminders]);
 
   // 延迟读取 localStorage 避免 hydration mismatch
   useEffect(() => {
@@ -412,31 +521,27 @@ export default function ChatClient() {
   }, []);
 
   useEffect(() => {
-    const DEFAULT_MODEL: Model = {
-      id: 'gemini-2.5-flash',
-      displayName: 'Gemini 2.5 Flash',
-      description: 'Fast, efficient multimodal model',
-      inputTokenLimit: 1048576,
-      thinking: false,
-    };
-
     fetch('/api/models')
-      .then(r => r.json())
-      .then(data => {
+      .then(async (r) => {
+        const data = await r.json();
         const list: Model[] = data.models ?? [];
+        const defaultModelId: string | undefined = data.defaultModelId;
         if (list.length === 0) {
-          setModels([DEFAULT_MODEL]);
-          setSelectedModel(DEFAULT_MODEL.id);
+          setModels([]);
+          setSelectedModel('');
           return;
         }
         setModels(list);
         const saved = localStorage.getItem('selectedModel');
-        const initial = list.find(m => m.id === saved) ? saved! : list[0]?.id ?? DEFAULT_MODEL.id;
+        const savedInList = saved && list.some(m => m.id === saved);
+        const initial = savedInList
+          ? saved!
+          : (defaultModelId || list[0]?.id || '');
         setSelectedModel(initial);
       })
       .catch(() => {
-        setModels([DEFAULT_MODEL]);
-        setSelectedModel(DEFAULT_MODEL.id);
+        setModels([]);
+        setSelectedModel('');
       })
       .finally(() => setModelsLoading(false));
   }, []);
@@ -453,7 +558,7 @@ export default function ChatClient() {
             ) : (
               <Select
                 value={selectedModel}
-                onValueChange={v => { if (v) { setSelectedModel(v); localStorage.setItem('selectedModel', v); } }}
+                onValueChange={makePersistHandler(setSelectedModel, 'selectedModel')}
                 disabled={false}
               >
                 <SelectTrigger className="w-auto min-w-35 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title={currentModelObj?.description}>
@@ -480,7 +585,7 @@ export default function ChatClient() {
 
             <Select
               value={selectedPersona}
-              onValueChange={v => { if (v) { setSelectedPersona(v); localStorage.setItem('selectedPersona', v); } }}
+              onValueChange={makePersistHandler(setSelectedPersona, 'selectedPersona')}
               disabled={false}
             >
               <SelectTrigger className="w-auto min-w-22.5 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0">
@@ -498,7 +603,7 @@ export default function ChatClient() {
             {/* 后端切换 — 切换时清空对话 */}
             <Select
               value={backend}
-              onValueChange={v => { if (v) { setBackend(v as 'vercel' | 'langchain'); localStorage.setItem('selectedBackend', v); } }}
+              onValueChange={makePersistHandler<'vercel' | 'langchain'>(v => setBackend(v), 'selectedBackend')}
               disabled={false}
             >
               <SelectTrigger className="w-auto min-w-25 h-7 text-xs border-none bg-transparent hover:bg-secondary focus:bg-secondary focus:ring-0" title="切换后端实现（会清空对话）">
@@ -510,14 +615,14 @@ export default function ChatClient() {
               </SelectContent>
             </Select>
 
-            {/* 待办面板切换按钮 */}
+            {/* 提醒面板切换按钮 */}
             <Button
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs text-muted-foreground"
-              onClick={() => { if (!showTodos) fetchTodos(); setShowTodos(!showTodos); }}
+              onClick={() => { if (!showReminders) fetchReminders(); setShowReminders(!showReminders); }}
             >
-              待办 {todos.length > 0 && `(${todos.length})`}
+              提醒 {reminders.length > 0 && `(${reminders.length})`}
             </Button>
           </>
         }
@@ -525,18 +630,42 @@ export default function ChatClient() {
 
       {/* 主内容区：对话 + 侧边栏 — backend 变化时重新挂载 ChatArea */}
       <div className="flex-1 flex min-h-0">
+        {/* 左侧对话列表 */}
+        <ConversationList
+          activeConversationId={conversationId}
+          pendingTitle={pendingConvTitle}
+          onSelect={(id) => { setPendingConvTitle(null); setConversationId(id); }}
+          onNew={() => { setPendingConvTitle('新对话'); setConversationId(null); }}
+          onDelete={(id) => { if (conversationId === id) setConversationId(null); }}
+        />
+
         <ChatArea
-          key={backend}
+          key={`${backend}-${conversationId ?? 'new'}`}
           backend={backend}
           selectedModel={selectedModel}
           selectedPersona={selectedPersona}
-          fetchTodos={fetchTodos}
+          conversationId={conversationId}
+          fetchReminders={fetchReminders}
           chatErrorMap={chatErrorMap}
           onChatError={(msg, msgId) => setChatErrorMap(prev => ({ ...prev, [msgId]: msg }))}
+          onConversationIdChange={(id) => { setPendingConvTitle(null); setConversationId(id); }}
+          onFirstSend={(text) => setPendingConvTitle(text)}
         />
 
-        {/* 待办列表侧边栏 */}
-        <TodoSidebar todos={todos} open={showTodos} onOpenChange={setShowTodos} />
+        {/* 提醒列表侧边栏 */}
+        <ReminderSidebar
+          reminders={reminders}
+          open={showReminders}
+          onOpenChange={setShowReminders}
+          onComplete={async (id) => {
+            await fetch(`/api/reminders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ done: true }) });
+            fetchReminders();
+          }}
+          onDelete={async (id) => {
+            await fetch(`/api/reminders/${id}`, { method: 'DELETE' });
+            fetchReminders();
+          }}
+        />
       </div>
     </>);
 }

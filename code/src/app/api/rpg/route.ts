@@ -8,6 +8,8 @@ import { rpgGraph } from '@/lib/rpg/graph';
 import { createInitialState } from '@/lib/rpg/initial-state';
 import { createLangfuseCallbacks } from '@/lib/langfuse';
 import { Command, INTERRUPT, isInterrupted } from '@langchain/langgraph';
+import { withApiHandler, errorResponse } from '@/lib/api-utils';
+import { rpgRequestSchema } from '@/lib/api-schemas';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
@@ -30,85 +32,75 @@ interface ExtractedMessage {
   content: string;
 }
 
-const MAX_PLAYER_INPUT_LENGTH = 2000;
-
 const encoder = new TextEncoder();
 
 export const maxDuration = 60;
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  const { action, threadId, playerInput, modelId } = body as {
-    action: string;
-    threadId?: string;
-    playerInput?: string;
-    modelId?: string;
-  };
+export const POST = withApiHandler(
+  async (req, body) => {
+    const { action, threadId, playerInput, modelId } = body;
 
-  // threadId 是游戏会话标识，用于 checkpointer 定位状态
-  const tid = threadId || `rpg-${Date.now()}`;
-  const config = {
-    configurable: { thread_id: tid, modelId },
-    ...createLangfuseCallbacks({
-      sessionId: tid,
-      tags: ['rpg-game'],
-      traceMetadata: { modelId, action },
-    }),
-  };
+    // threadId 是游戏会话标识，用于 checkpointer 定位状态
+    const tid = threadId || `rpg-${Date.now()}`;
+    const config = {
+      configurable: { thread_id: tid, modelId },
+      ...createLangfuseCallbacks({
+        sessionId: tid,
+        tags: ['rpg-game'],
+        traceMetadata: { modelId, action },
+      }),
+    };
 
-  if (action === 'start') {
-    // 启动新游戏
-    return handleGameStream(
-      () => rpgGraph.invoke(createInitialState(), config),
-      tid,
-    );
-  }
-
-  if (action === 'resume') {
-    // 恢复中断（提交玩家输入）
-    if (!playerInput) {
-      return Response.json({ error: 'playerInput is required for resume action' }, { status: 400 });
-    }
-    if (playerInput.length > MAX_PLAYER_INPUT_LENGTH) {
-      return Response.json({ error: `playerInput too long (max ${MAX_PLAYER_INPUT_LENGTH} characters)` }, { status: 400 });
-    }
-    return handleGameStream(
-      () => rpgGraph.invoke(new Command({ resume: playerInput }), config),
-      tid,
-    );
-  }
-
-  if (action === 'recover') {
-    // 探针接口：从 checkpointer 拉取当前线程状态（用于页面刷新恢复）
-    const snapshot = await rpgGraph.getState({ configurable: { thread_id: tid } });
-
-    // 没有状态 = 无效 threadId（服务器重启或从未存在）
-    if (!snapshot.values || Object.keys(snapshot.values).length === 0) {
-      return Response.json({ error: 'Game session not found' }, { status: 404 });
+    if (action === 'start') {
+      // 启动新游戏
+      return handleGameStream(
+        () => rpgGraph.invoke(createInitialState(), config),
+        tid,
+      );
     }
 
-    const hasPendingInterrupt = snapshot.next.length > 0
-      && snapshot.tasks.some(t => t.interrupts.length > 0);
+    if (action === 'resume') {
+      // 恢复中断（提交玩家输入）— playerInput 已由 Zod schema 校验 max(2000)
+      return handleGameStream(
+        () => rpgGraph.invoke(new Command({ resume: playerInput }), config),
+        tid,
+      );
+    }
 
-    if (hasPendingInterrupt) {
-      // 游戏卡在 interrupt，返回完整状态供前端恢复
+    if (action === 'recover') {
+      // 探针接口：从 checkpointer 拉取当前线程状态（用于页面刷新恢复）
+      const snapshot = await rpgGraph.getState({ configurable: { thread_id: tid } });
+
+      // 没有状态 = 无效 threadId（服务器重启或从未存在）
+      if (!snapshot.values || Object.keys(snapshot.values).length === 0) {
+        return errorResponse('VALIDATION_ERROR', 'Game session not found', 404);
+      }
+
+      const hasPendingInterrupt = snapshot.next.length > 0
+        && snapshot.tasks.some(t => t.interrupts.length > 0);
+
+      if (hasPendingInterrupt) {
+        // 游戏卡在 interrupt，返回完整状态供前端恢复
+        return Response.json({
+          status: 'awaiting_input',
+          gameState: extractGameState(snapshot.values as AnyRecord),
+          messages: extractMessages(snapshot.values as AnyRecord),
+        });
+      }
+
+      // 游戏已结束（到 END 节点）
       return Response.json({
-        status: 'awaiting_input',
+        status: 'completed',
         gameState: extractGameState(snapshot.values as AnyRecord),
         messages: extractMessages(snapshot.values as AnyRecord),
       });
     }
 
-    // 游戏已结束（到 END 节点）
-    return Response.json({
-      status: 'completed',
-      gameState: extractGameState(snapshot.values as AnyRecord),
-      messages: extractMessages(snapshot.values as AnyRecord),
-    });
-  }
-
-  return Response.json({ error: 'Invalid action. Use "start", "resume", or "recover".' }, { status: 400 });
-}
+    // Zod schema 已限定 action 为 enum，此处理论上不可达
+    return errorResponse('VALIDATION_ERROR', 'Invalid action');
+  },
+  { schema: rpgRequestSchema },
+);
 
 async function handleGameStream(
   invokeFn: () => Promise<AnyRecord>,

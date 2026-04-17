@@ -14,7 +14,10 @@ const modelCache = new Map<string, BaseChatModel>();
  * - 否则 → Google Gemini
  */
 export function getModel(modelId?: string): BaseChatModel {
-  const modelName = modelId || process.env.DEFAULT_MODEL || process.env.GOOGLE_GENERATIVE_AI_MODEL || 'gemini-2.5-flash';
+  const modelName = modelId || process.env.DEFAULT_MODEL || process.env.GOOGLE_GENERATIVE_AI_MODEL;
+  if (!modelName) {
+    throw new Error('No model configured. Set DEFAULT_MODEL or GOOGLE_GENERATIVE_AI_MODEL env var.');
+  }
   const cached = modelCache.get(modelName);
   if (cached) return cached;
 
