@@ -9,19 +9,16 @@
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import type { EmbeddingsInterface } from '@langchain/core/embeddings';
+import { getLmStudioConfig } from './embeddings';
 
 let embeddingsInstance: EmbeddingsInterface | null = null;
 
 function createEmbeddings(): EmbeddingsInterface {
-  const lmStudioBaseUrl = process.env.LM_STUDIO_BASE_URL;
-  const lmStudioModel = process.env.LM_STUDIO_EMBEDDING_MODEL;
-
-  if (lmStudioBaseUrl && lmStudioModel) {
+  const lmStudio = getLmStudioConfig();
+  if (lmStudio) {
     return new OpenAIEmbeddings({
-      model: lmStudioModel,
-      configuration: {
-        baseURL: lmStudioBaseUrl,
-      },
+      model: lmStudio.model,
+      configuration: { baseURL: lmStudio.baseURL },
       apiKey: 'lm-studio', // LM Studio 不校验 key
     });
   }

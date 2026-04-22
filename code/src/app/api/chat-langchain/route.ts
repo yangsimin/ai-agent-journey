@@ -12,14 +12,14 @@ import { createAgent, dynamicSystemPromptMiddleware } from 'langchain';
 import { getModel } from '@/lib/llm';
 import { lcTools } from '@/lib/tools-langchain';
 import { getLcVectorStore, readLcStore } from '@/lib/vectorStore-langchain';
-import { getMcpToolsAsLangChain, convertMcpToolToLangChain, type TransportType } from '@/lib/mcp-client';
+import { getMcpToolsAsLangChain, type LangChainMcpTool, type TransportType } from '@/lib/mcp-client';
 import { createLangfuseCallbacks } from '@/lib/langfuse';
 import { withApiHandler, errorResponse } from '@/lib/api-utils';
 import { chatRequestSchema } from '@/lib/api-schemas';
 import { createConversation, addMessage, generateTitle, getMessages } from '@/lib/conversations';
 
 // 缓存 MCP 工具（避免每个请求都重新连接）
-let cachedLcMcpTools: ReturnType<typeof convertMcpToolToLangChain>[] | null = null;
+let cachedLcMcpTools: LangChainMcpTool[] | null = null;
 
 const getMcpTransportType = (): TransportType =>
   process.env.MCP_TRANSPORT === 'http' ? 'http' : 'stdio';
@@ -124,7 +124,7 @@ ${contextText}
     try {
       if (!cachedLcMcpTools) {
         const transportType = getMcpTransportType();
-        cachedLcMcpTools = await getMcpToolsAsLangChain({ transportType });
+        cachedLcMcpTools = await getMcpToolsAsLangChain(transportType);
       }
       allLcTools = [...allLcTools, ...cachedLcMcpTools];
     } catch {
@@ -155,7 +155,7 @@ ${contextText}
     const langchainMessages = await toBaseMessages(contextMessages);
 
     // 创建 Langfuse 追踪配置
-    const langfuseConfig = createLangfuseCallbacks({
+    const langfuseCallbacks = createLangfuseCallbacks({
       sessionId: body.sessionId ?? convId,
       userId: body.userId,
       traceMetadata: {
@@ -173,7 +173,7 @@ ${contextText}
       { messages: langchainMessages },
       {
         streamMode: ['values', 'messages'],
-        ...langfuseConfig,
+        callbacks: langfuseCallbacks,
       },
     );
 

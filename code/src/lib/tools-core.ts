@@ -1,7 +1,6 @@
 // 共享工具逻辑：schemas、mock 数据、核心执行函数
 // tools.ts (Vercel AI SDK) 和 tools-langchain.ts (LangChain) 均从此导入
 import { z } from 'zod';
-import { listReminders, createReminder, updateReminder } from './reminders';
 
 // ========== 共享 Zod Schemas ==========
 
@@ -38,22 +37,7 @@ const weatherData: Record<string, { temperature: number; condition: string; humi
   '纽约': { temperature: 15, condition: '多云', humidity: 50 },
 };
 
-// ========== 核心执行函数 ==========
-
-export async function coreCreateReminder(input: z.infer<typeof createReminderSchema>) {
-  const reminder = await createReminder(input);
-  return { success: true, reminder };
-}
-
-export async function coreListReminders(input: z.infer<typeof listRemindersSchema>) {
-  const reminders = await listReminders(input.includeDone);
-  return { reminders };
-}
-
-export async function coreCompleteReminder(input: z.infer<typeof completeReminderSchema>) {
-  const reminder = await updateReminder(input.id, { done: true });
-  return { success: true, reminder };
-}
+// ========== 天气执行函数（含 mock 逻辑，不适合内联）==========
 
 export async function coreGetWeather(input: z.infer<typeof getWeatherSchema>) {
   const data = weatherData[input.city];

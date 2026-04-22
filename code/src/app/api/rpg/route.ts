@@ -44,7 +44,7 @@ export const POST = withApiHandler(
     const tid = threadId || `rpg-${Date.now()}`;
     const config = {
       configurable: { thread_id: tid, modelId },
-      ...createLangfuseCallbacks({
+      callbacks: createLangfuseCallbacks({
         sessionId: tid,
         tags: ['rpg-game'],
         traceMetadata: { modelId, action },

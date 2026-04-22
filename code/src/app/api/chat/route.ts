@@ -9,7 +9,7 @@ import { trace } from '@opentelemetry/api';
 import { searchStore, readStore } from '@/lib/vectorStore';
 import { embedText } from '@/lib/embeddings';
 import { myTools } from '@/lib/tools';
-import { getMcpToolsAsAiSdk, convertMcpToolToAiSdk, type TransportType } from '@/lib/mcp-client';
+import { getMcpToolsAsAiSdk, type AiSdkMcpTools, type TransportType } from '@/lib/mcp-client';
 import { langfuseSpanProcessor } from '@/instrumentation';
 import { withApiHandler, errorResponse } from '@/lib/api-utils';
 import { chatRequestSchema } from '@/lib/api-schemas';
@@ -21,7 +21,7 @@ export const maxDuration = 30;
 const chineseSegmenter = new Intl.Segmenter('zh', { granularity: 'word' });
 
 // 缓存 MCP 工具（避免每个请求都重新连接）
-let cachedMcpTools: Record<string, ReturnType<typeof convertMcpToolToAiSdk>> | null = null;
+let cachedMcpTools: AiSdkMcpTools | null = null;
 
 // MCP 传输方式：默认 stdio，可通过环境变量 MCP_TRANSPORT=http 切换
 const getMcpTransportType = (): TransportType => {
@@ -158,7 +158,7 @@ export const POST = withApiHandler(
       // 使用缓存的 MCP 工具，避免每次请求都重新连接
       if (!cachedMcpTools) {
         const transportType = getMcpTransportType();
-        cachedMcpTools = await getMcpToolsAsAiSdk({ transportType });
+        cachedMcpTools = await getMcpToolsAsAiSdk(transportType);
       }
       allTools = { ...allTools, ...cachedMcpTools };
     } catch {

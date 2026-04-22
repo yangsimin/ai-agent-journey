@@ -8,8 +8,8 @@
 
 import { MemoryVectorStore } from '@langchain/classic/vectorstores/memory';
 import { Document } from '@langchain/core/documents';
-import fs from 'fs';
 import path from 'path';
+import { readJsonFile, writeJsonFile } from './vectorStore';
 import { getLcEmbeddings } from './embeddings-langchain';
 
 const STORE_PATH = path.join(process.cwd(), '.lc_vector_store.json');
@@ -23,22 +23,7 @@ interface StoredDoc {
  * 从 JSON 文件读取持久化的 Document 数据
  */
 export function readLcStore(): StoredDoc[] {
-  try {
-    if (fs.existsSync(STORE_PATH)) {
-      const data = fs.readFileSync(STORE_PATH, 'utf-8');
-      return JSON.parse(data);
-    }
-  } catch (e) {
-    console.error('读取 LC 向量数据库失败:', e);
-  }
-  return [];
-}
-
-/**
- * 写回持久化
- */
-function writeStore(docs: StoredDoc[]) {
-  fs.writeFileSync(STORE_PATH, JSON.stringify(docs, null, 2), 'utf-8');
+  return readJsonFile<StoredDoc>(STORE_PATH);
 }
 
 /**
@@ -50,11 +35,9 @@ export async function getLcVectorStore(): Promise<MemoryVectorStore> {
   const storedDocs = readLcStore();
 
   if (storedDocs.length === 0) {
-    // 空库，直接返回新的 MemoryVectorStore
     return new MemoryVectorStore(embeddings);
   }
 
-  // 从持久化数据重建
   const docs: Document[] = storedDocs.map(d => new Document({
     pageContent: d.pageContent,
     metadata: d.metadata,
@@ -67,23 +50,20 @@ export async function getLcVectorStore(): Promise<MemoryVectorStore> {
  * 添加文档到向量存储（同时持久化到 JSON 文件）
  */
 export async function addDocumentsToStore(docs: Document[]): Promise<void> {
-  // 先从持久化读取已有数据
   const storedDocs = readLcStore();
 
-  // 合并新文档
   const newDocs: StoredDoc[] = docs.map(d => ({
     pageContent: d.pageContent,
     metadata: d.metadata ?? {},
   }));
   storedDocs.push(...newDocs);
 
-  // 持久化
-  writeStore(storedDocs);
+  writeJsonFile(STORE_PATH, storedDocs);
 }
 
 /**
  * 清空向量存储
  */
 export function clearLcStore(): void {
-  writeStore([]);
+  writeJsonFile<StoredDoc>(STORE_PATH, []);
 }

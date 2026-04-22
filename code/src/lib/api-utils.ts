@@ -33,48 +33,48 @@ export function errorResponse(
 // ========== 高阶包装器 ==========
 
 interface ApiHandlerOptions<T> {
-  /** 请求体 Zod 校验 schema */
+  /** 请求体 Zod 校验 schema。有 schema 则解析 JSON body，无则跳过（适用于 GET）。 */
   schema?: ZodSchema<T>;
   /** 超时毫秒数（非流式路由默认 30000，流式路由不设整体超时） */
   timeout?: number;
 }
 
 /**
- * 包裹需要请求体的 API 路由（POST/PATCH）。
- * 自动处理：请求解析、Zod 校验、超时、外层 try-catch。
+ * 包裹 API 路由（GET/POST/PATCH 均适用）。
+ * - 传入 schema：自动解析 JSON body 并校验（POST/PATCH）
+ * - 不传 schema：跳过 body 解析（GET）
+ * 自动处理：Zod 校验、超时、外层 try-catch。
  */
-export function withApiHandler<T>(
+export function withApiHandler<T = void>(
   handler: (req: Request, body: T) => Promise<Response>,
   options?: ApiHandlerOptions<T>,
 ): (req: Request) => Promise<Response> {
   return async (req: Request) => {
     try {
-      // 解析请求体
-      let body: unknown;
-      try {
-        body = await req.json();
-      } catch {
-        return errorResponse('VALIDATION_ERROR', 'Invalid JSON body');
-      }
+      let body: T = undefined as T;
 
-      // Zod 校验
       if (options?.schema) {
-        const result = options.schema.safeParse(body);
+        let raw: unknown;
+        try {
+          raw = await req.json();
+        } catch {
+          return errorResponse('VALIDATION_ERROR', 'Invalid JSON body');
+        }
+        const result = options.schema.safeParse(raw);
         if (!result.success) {
           return errorResponse('VALIDATION_ERROR', 'Validation failed', 400, result.error.flatten());
         }
         body = result.data;
       }
 
-      // 非流式路由：对整体 handler 设置超时
       if (options?.timeout) {
         return await Promise.race([
-          handler(req, body as T),
+          handler(req, body),
           createTimeoutPromise(options.timeout),
         ]);
       }
 
-      return await handler(req, body as T);
+      return await handler(req, body);
     } catch (error: unknown) {
       console.error('[API Handler] Unhandled error:', error);
       const message = error instanceof Error ? error.message : 'Internal Server Error';
@@ -83,30 +83,11 @@ export function withApiHandler<T>(
   };
 }
 
-/**
- * 包裹 GET 路由（无需请求体）。
- * 自动处理：超时、外层 try-catch。
- */
-export function withGetHandler(
+/** @deprecated 请使用 withApiHandler（不传 schema） */
+export const withGetHandler = (
   handler: (req: Request) => Promise<Response>,
   options?: { timeout?: number },
-): (req: Request) => Promise<Response> {
-  return async (req: Request) => {
-    try {
-      if (options?.timeout) {
-        return await Promise.race([
-          handler(req),
-          createTimeoutPromise(options.timeout),
-        ]);
-      }
-      return await handler(req);
-    } catch (error: unknown) {
-      console.error('[API Handler] Unhandled error:', error);
-      const message = error instanceof Error ? error.message : 'Internal Server Error';
-      return errorResponse('INTERNAL', message);
-    }
-  };
-}
+) => withApiHandler<void>((req) => handler(req), options);
 
 function createTimeoutPromise(ms: number): Promise<never> {
   return new Promise((_, reject) => {

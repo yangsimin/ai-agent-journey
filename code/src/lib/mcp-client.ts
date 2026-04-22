@@ -4,6 +4,11 @@
  * 支持两种传输方式：
  * - stdio: 通过标准输入/输出与本地 MCP Server 通信
  * - http: 通过 HTTP 与远程 MCP Server 通信
+ *
+ * 对外仅暴露两个高层函数 + 类型：
+ * - getMcpToolsAsAiSdk()   → Vercel AI SDK 格式工具
+ * - getMcpToolsAsLangChain() → LangChain 格式工具
+ * - TransportType            → 传输方式类型
  */
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -39,24 +44,21 @@ const DEFAULT_HTTP_URL = "http://localhost:3001/mcp";
 let mcpClient: Client | null = null;
 const mcpTools: Map<string, Tool> = new Map();
 let isConnected = false;
-let currentConfig: McpClientConfig | null = null;
 
 /**
  * 初始化 MCP Client 并连接到 Server
  */
-export async function initMcpClient(config?: Partial<McpClientConfig>): Promise<Client> {
+async function initMcpClient(transportType: TransportType = "stdio"): Promise<Client> {
   if (mcpClient && isConnected) {
     return mcpClient;
   }
 
-  const finalConfig: McpClientConfig = {
-    transportType: config?.transportType || "stdio",
-    serverPath: config?.serverPath || DEFAULT_STDIO_PATH,
-    allowedDirs: config?.allowedDirs || process.cwd(),
-    serverUrl: config?.serverUrl || process.env.MCP_SERVER_URL || DEFAULT_HTTP_URL,
+  const config: McpClientConfig = {
+    transportType,
+    serverPath: DEFAULT_STDIO_PATH,
+    allowedDirs: process.cwd(),
+    serverUrl: process.env.MCP_SERVER_URL || DEFAULT_HTTP_URL,
   };
-
-  currentConfig = finalConfig;
 
   mcpClient = new Client(
     {
@@ -70,20 +72,18 @@ export async function initMcpClient(config?: Partial<McpClientConfig>): Promise<
 
   let transport;
 
-  if (finalConfig.transportType === "stdio") {
-    // stdio 传输
+  if (config.transportType === "stdio") {
     transport = new StdioClientTransport({
       command: "node",
-      args: [finalConfig.serverPath!],
+      args: [config.serverPath!],
       env: {
         ...process.env,
-        ALLOWED_DIRS: finalConfig.allowedDirs!,
+        ALLOWED_DIRS: config.allowedDirs!,
       } as Record<string, string>,
     });
   } else {
-    // HTTP 传输
     transport = new StreamableHTTPClientTransport(
-      new URL(finalConfig.serverUrl!)
+      new URL(config.serverUrl!)
     );
   }
 
@@ -96,8 +96,8 @@ export async function initMcpClient(config?: Partial<McpClientConfig>): Promise<
 /**
  * 获取 MCP Server 提供的工具列表
  */
-export async function getMcpTools(config?: Partial<McpClientConfig>): Promise<Tool[]> {
-  const client = await initMcpClient(config);
+async function getMcpTools(transportType: TransportType = "stdio"): Promise<Tool[]> {
+  const client = await initMcpClient(transportType);
 
   const response = await client.request(
     { method: "tools/list", params: {} },
@@ -115,12 +115,11 @@ export async function getMcpTools(config?: Partial<McpClientConfig>): Promise<To
 /**
  * 调用 MCP 工具
  */
-export async function callMcpTool(
+async function callMcpTool(
   toolName: string,
   args: Record<string, unknown>,
-  config?: Partial<McpClientConfig>
 ): Promise<string> {
-  const client = await initMcpClient(config);
+  const client = await initMcpClient();
 
   const response = await client.request(
     {
@@ -197,7 +196,7 @@ function convertJsonSchemaToZod(schema: Record<string, unknown>): z.ZodObject<Re
 /**
  * 将 MCP 工具转换为 Vercel AI SDK 格式
  */
-export function convertMcpToolToAiSdk(mcpTool: Tool) {
+function convertMcpToolToAiSdk(mcpTool: Tool) {
   const zodSchema = convertJsonSchemaToZod(mcpTool.inputSchema as Record<string, unknown>);
 
   return tool({
@@ -215,14 +214,17 @@ export function convertMcpToolToAiSdk(mcpTool: Tool) {
   });
 }
 
+/** AI SDK 格式的 MCP 工具集合 */
+export type AiSdkMcpTools = Record<string, ReturnType<typeof convertMcpToolToAiSdk>>;
+
 /**
  * 获取所有 MCP 工具（Vercel AI SDK 格式）
  */
 export async function getMcpToolsAsAiSdk(
-  config?: Partial<McpClientConfig>
-): Promise<Record<string, ReturnType<typeof convertMcpToolToAiSdk>>> {
-  const tools = await getMcpTools(config);
-  const result: Record<string, ReturnType<typeof convertMcpToolToAiSdk>> = {};
+  transportType: TransportType = "stdio",
+): Promise<AiSdkMcpTools> {
+  const tools = await getMcpTools(transportType);
+  const result: AiSdkMcpTools = {};
 
   for (const t of tools) {
     result[t.name] = convertMcpToolToAiSdk(t);
@@ -232,30 +234,11 @@ export async function getMcpToolsAsAiSdk(
 }
 
 /**
- * 获取当前传输类型
- */
-export function getTransportType(): TransportType | null {
-  return currentConfig?.transportType || null;
-}
-
-/**
- * 关闭 MCP Client 连接
- */
-export async function closeMcpClient(): Promise<void> {
-  if (mcpClient && isConnected) {
-    await mcpClient.close();
-    mcpClient = null;
-    isConnected = false;
-    currentConfig = null;
-  }
-}
-
-/**
  * 将 MCP 工具转换为 LangChain 格式
  * 对比：Vercel AI SDK 用 tool({ description, inputSchema, execute })
  *       LangChain 用 tool(fn, { name, description, schema })
  */
-export function convertMcpToolToLangChain(mcpTool: Tool) {
+function convertMcpToolToLangChain(mcpTool: Tool) {
   const zodSchema = convertJsonSchemaToZod(mcpTool.inputSchema as Record<string, unknown>);
 
   return lcTool(
@@ -276,12 +259,15 @@ export function convertMcpToolToLangChain(mcpTool: Tool) {
   );
 }
 
+/** LangChain 格式的 MCP 工具 */
+export type LangChainMcpTool = ReturnType<typeof convertMcpToolToLangChain>;
+
 /**
  * 获取所有 MCP 工具（LangChain 格式）
  */
 export async function getMcpToolsAsLangChain(
-  config?: Partial<McpClientConfig>
-): Promise<ReturnType<typeof convertMcpToolToLangChain>[]> {
-  const tools = await getMcpTools(config);
+  transportType: TransportType = "stdio",
+): Promise<LangChainMcpTool[]> {
+  const tools = await getMcpTools(transportType);
   return tools.map(convertMcpToolToLangChain);
 }

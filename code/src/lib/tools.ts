@@ -1,12 +1,11 @@
 import { tool } from 'ai';
+import { z } from 'zod';
+import { listReminders, createReminder, updateReminder } from './reminders';
 import {
   createReminderSchema,
   listRemindersSchema,
   completeReminderSchema,
   getWeatherSchema,
-  coreCreateReminder,
-  coreListReminders,
-  coreCompleteReminder,
   coreGetWeather,
 } from './tools-core';
 
@@ -15,19 +14,28 @@ const CREATE_REMINDER_DESC = '创建一个提醒事项。当用户提到"提醒�
 export const createReminderTool = tool({
   description: CREATE_REMINDER_DESC,
   inputSchema: createReminderSchema,
-  execute: coreCreateReminder,
+  execute: async (input: z.infer<typeof createReminderSchema>) => {
+    const reminder = await createReminder(input);
+    return { success: true, reminder };
+  },
 });
 
 export const listRemindersTool = tool({
   description: '列出提醒事项。当用户询问"有什么提醒"、"我的待办"等时调用此工具。',
   inputSchema: listRemindersSchema,
-  execute: coreListReminders,
+  execute: async (input: z.infer<typeof listRemindersSchema>) => {
+    const reminders = await listReminders(input.includeDone);
+    return { reminders };
+  },
 });
 
 export const completeReminderTool = tool({
   description: '将一个提醒标记为已完成。当用户说"完成了X"、"取消提醒X"等时调用。',
   inputSchema: completeReminderSchema,
-  execute: coreCompleteReminder,
+  execute: async (input: z.infer<typeof completeReminderSchema>) => {
+    const reminder = await updateReminder(input.id, { done: true });
+    return { success: true, reminder };
+  },
 });
 
 export const getWeatherTool = tool({

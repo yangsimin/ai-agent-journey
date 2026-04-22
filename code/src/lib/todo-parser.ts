@@ -128,10 +128,3 @@ export function toggleCheckbox(lineNumber: number): boolean {
   fs.writeFileSync(TODO_PATH, lines.join("\n"), "utf-8");
   return newX === "x";
 }
-
-/**
- * 读取 todo.md 原始内容
- */
-export function readTodoMdContent(): string {
-  return fs.readFileSync(TODO_PATH, "utf-8");
-}
